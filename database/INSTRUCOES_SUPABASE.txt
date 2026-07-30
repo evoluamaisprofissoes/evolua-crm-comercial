@@ -1,0 +1,22 @@
+EVOLUA CRM COMERCIAL — INSTALAÇÃO DO BANCO
+
+Projeto Supabase:
+https://joxsqjldhkyawijecflv.supabase.co
+
+1. Abra o projeto no Supabase.
+2. No menu esquerdo, entre em SQL Editor.
+3. Clique em New query.
+4. Abra o arquivo evolua_crm_supabase_schema.sql.
+5. Copie todo o conteúdo e cole no editor.
+6. Clique em Run.
+7. O resultado esperado é: Success. No rows returned.
+
+Depois, confira em Table Editor se apareceram as tabelas:
+profiles, workspaces, workspace_members, courses, lead_sources, leads,
+lead_interests, interactions, lead_status_history, tasks, enrollments,
+payments, monthly_plans e sw2h_actions.
+
+Segurança:
+- Não use nem envie a secret key/service_role.
+- O banco utiliza Row Level Security (RLS).
+- A chave publishable será usada somente no frontend.
