@@ -1,0 +1,26 @@
+EVOLUA CRM COMERCIAL — PUBLICAÇÃO MANUAL
+
+1. Abra o repositório que você criou no GitHub.
+2. Clique em Add file > Upload files.
+3. Extraia o arquivo ZIP no computador.
+4. Arraste TODOS os arquivos e pastas extraídos para a tela do GitHub:
+   - index.html
+   - .nojekyll
+   - README.md
+   - COMO_PUBLICAR.txt
+   - pasta assets
+   - pasta css
+   - pasta js
+5. Clique em Commit changes.
+6. Abra Settings > Pages.
+7. Em Source, escolha Deploy from a branch.
+8. Selecione main e /(root).
+9. Clique em Save.
+10. Abra o endereço publicado pelo GitHub Pages.
+11. Entre com o usuário criado no Supabase Authentication.
+
+IMPORTANTE:
+- Não envie a pasta externa evolua-crm-comercial como uma única pasta.
+- Os arquivos index.html, css e js precisam ficar na raiz do repositório.
+- A chave que está no arquivo js/config.js é uma Publishable Key, adequada para frontend.
+- Nunca substitua por secret key ou service_role.

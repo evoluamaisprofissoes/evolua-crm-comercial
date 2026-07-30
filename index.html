@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#5b21b6">
+  <meta name="description" content="CRM comercial para gestão de leads, follow-ups, matrículas, faturamento e planejamento da Evolua.">
+  <title>Evolua CRM Comercial</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <section id="login-view" class="login-view">
+    <div class="login-decoration decoration-one"></div>
+    <div class="login-decoration decoration-two"></div>
+    <div class="login-card">
+      <div class="brand brand-login">
+        <div class="brand-mark">E+</div>
+        <div>
+          <strong>Evolua CRM</strong>
+          <span>Inteligência comercial</span>
+        </div>
+      </div>
+
+      <div class="login-copy">
+        <span class="eyebrow">ACESSO RESTRITO</span>
+        <h1>Seu comercial, sem pontas soltas.</h1>
+        <p>Leads, follow-ups, matrículas, metas e faturamento no mesmo painel.</p>
+      </div>
+
+      <form id="login-form" class="form-stack">
+        <label>
+          <span>E-mail</span>
+          <input id="login-email" type="email" autocomplete="email" required placeholder="seuemail@exemplo.com">
+        </label>
+        <label>
+          <span>Senha</span>
+          <input id="login-password" type="password" autocomplete="current-password" required placeholder="Sua senha">
+        </label>
+        <button id="login-button" class="btn btn-primary btn-block" type="submit">
+          <span>Entrar no CRM</span>
+        </button>
+      </form>
+      <p class="login-note">Os dados são armazenados no Supabase e protegidos por login.</p>
+    </div>
+  </section>
+
+  <div id="app-view" class="app-shell hidden">
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-head">
+        <div class="brand">
+          <div class="brand-mark">E+</div>
+          <div>
+            <strong>Evolua CRM</strong>
+            <span>Comercial</span>
+          </div>
+        </div>
+        <button id="sidebar-close" class="icon-btn mobile-only" aria-label="Fechar menu">×</button>
+      </div>
+
+      <nav class="nav-menu" aria-label="Navegação principal">
+        <button class="nav-item active" data-page="dashboard"><span class="nav-icon">◫</span> Dashboard</button>
+        <button class="nav-item" data-page="leads"><span class="nav-icon">◎</span> Leads</button>
+        <button class="nav-item" data-page="agenda"><span class="nav-icon">◷</span> Agenda e follow-up</button>
+        <button class="nav-item" data-page="enrollments"><span class="nav-icon">✓</span> Matrículas</button>
+        <button class="nav-item" data-page="finance"><span class="nav-icon">$</span> Financeiro</button>
+        <button class="nav-item" data-page="planning"><span class="nav-icon">◇</span> Planejamento 5W2H</button>
+        <button class="nav-item" data-page="reports"><span class="nav-icon">⇩</span> Relatórios</button>
+        <button class="nav-item" data-page="settings"><span class="nav-icon">⚙</span> Cadastros</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-mini">
+          <div id="user-avatar" class="avatar">MD</div>
+          <div>
+            <strong id="user-name">Usuário</strong>
+            <span id="user-email">email</span>
+          </div>
+        </div>
+        <button id="logout-button" class="btn btn-ghost btn-block">Sair</button>
+      </div>
+    </aside>
+
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button id="sidebar-open" class="icon-btn mobile-only" aria-label="Abrir menu">☰</button>
+          <div>
+            <p id="page-eyebrow" class="eyebrow">VISÃO GERAL</p>
+            <h1 id="page-title">Dashboard</h1>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <label class="month-filter">
+            <span>Mês</span>
+            <input id="global-month" type="month">
+          </label>
+          <button id="quick-lead-button" class="btn btn-primary">+ Novo lead</button>
+        </div>
+      </header>
+
+      <section id="loading-state" class="loading-state hidden">
+        <div class="spinner"></div>
+        <p>Organizando o radar comercial...</p>
+      </section>
+
+      <div id="pages-container">
+        <section id="page-dashboard" class="page active-page">
+          <div id="dashboard-kpis" class="kpi-grid"></div>
+
+          <div class="dashboard-grid">
+            <article class="panel panel-wide">
+              <div class="panel-head">
+                <div>
+                  <span class="eyebrow">DESEMPENHO</span>
+                  <h2>Receita dos últimos meses</h2>
+                </div>
+              </div>
+              <div class="chart-wrap"><canvas id="revenue-chart"></canvas></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="eyebrow">CONVERSÃO</span>
+                  <h2>Funil comercial</h2>
+                </div>
+              </div>
+              <div class="chart-wrap"><canvas id="funnel-chart"></canvas></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="eyebrow">META DO MÊS</span>
+                  <h2>Progresso comercial</h2>
+                </div>
+              </div>
+              <div id="goal-progress" class="goal-progress"></div>
+            </article>
+
+            <article class="panel panel-wide">
+              <div class="panel-head">
+                <div>
+                  <span class="eyebrow">PRIORIDADES</span>
+                  <h2>Follow-ups que pedem atenção</h2>
+                </div>
+                <button class="btn btn-secondary btn-sm" data-go-page="agenda">Ver agenda</button>
+              </div>
+              <div id="dashboard-tasks" class="table-wrap"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="page-leads" class="page">
+          <div class="page-toolbar">
+            <div class="segmented-control">
+              <button class="segment active" data-lead-view="table">Lista</button>
+              <button class="segment" data-lead-view="kanban">Funil</button>
+            </div>
+            <div class="toolbar-group">
+              <input id="lead-search" class="search-input" type="search" placeholder="Buscar nome, WhatsApp ou curso">
+              <select id="lead-status-filter">
+                <option value="">Todos os status</option>
+              </select>
+              <button id="new-lead-button" class="btn btn-primary">+ Cadastrar lead</button>
+            </div>
+          </div>
+          <div id="leads-table-view" class="panel"></div>
+          <div id="leads-kanban-view" class="kanban hidden"></div>
+        </section>
+
+        <section id="page-agenda" class="page">
+          <div class="page-toolbar">
+            <div class="summary-pills" id="task-summary-pills"></div>
+            <div class="toolbar-group">
+              <select id="task-filter">
+                <option value="pending">Pendentes</option>
+                <option value="today">Hoje</option>
+                <option value="overdue">Atrasados</option>
+                <option value="all">Todos</option>
+              </select>
+              <button id="new-task-button" class="btn btn-primary">+ Agendar tarefa</button>
+            </div>
+          </div>
+          <div class="panel"><div id="tasks-list" class="task-list"></div></div>
+        </section>
+
+        <section id="page-enrollments" class="page">
+          <div class="page-toolbar">
+            <div id="enrollment-summary" class="summary-pills"></div>
+            <button id="new-enrollment-button" class="btn btn-primary">+ Nova matrícula</button>
+          </div>
+          <div id="enrollments-table" class="panel"></div>
+        </section>
+
+        <section id="page-finance" class="page">
+          <div id="finance-kpis" class="kpi-grid compact"></div>
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="eyebrow">CAIXA COMERCIAL</span>
+                <h2>Recebimentos</h2>
+              </div>
+              <button id="new-payment-button" class="btn btn-primary">+ Registrar recebimento</button>
+            </div>
+            <div id="payments-table" class="table-wrap"></div>
+          </div>
+        </section>
+
+        <section id="page-planning" class="page">
+          <div class="planning-grid">
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="eyebrow">DIREÇÃO DO MÊS</span>
+                  <h2>Metas e planejamento</h2>
+                </div>
+                <button id="edit-plan-button" class="btn btn-secondary btn-sm">Editar metas</button>
+              </div>
+              <div id="monthly-plan-view"></div>
+            </article>
+            <article class="panel panel-wide">
+              <div class="panel-head">
+                <div>
+                  <span class="eyebrow">EXECUÇÃO</span>
+                  <h2>Plano de ação 5W2H</h2>
+                </div>
+                <button id="new-action-button" class="btn btn-primary btn-sm">+ Nova ação</button>
+              </div>
+              <div id="actions-table" class="table-wrap"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="page-reports" class="page">
+          <div class="reports-grid">
+            <article class="report-card">
+              <div class="report-icon">XLSX</div>
+              <h2>Backup completo em Excel</h2>
+              <p>Exporta leads, históricos, agenda, matrículas, recebimentos, metas e ações em abas separadas.</p>
+              <button id="export-excel-button" class="btn btn-primary">Exportar Excel</button>
+            </article>
+            <article class="report-card">
+              <div class="report-icon">PDF</div>
+              <h2>Relatório executivo mensal</h2>
+              <p>Gera um resumo profissional com indicadores, metas, funil e prioridades do mês selecionado.</p>
+              <button id="export-pdf-button" class="btn btn-primary">Gerar PDF</button>
+            </article>
+            <article class="report-card">
+              <div class="report-icon">JSON</div>
+              <h2>Backup técnico</h2>
+              <p>Baixa uma cópia estruturada dos dados para segurança e futura restauração.</p>
+              <button id="export-json-button" class="btn btn-secondary">Exportar JSON</button>
+            </article>
+          </div>
+        </section>
+
+        <section id="page-settings" class="page">
+          <div class="settings-grid">
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="eyebrow">CATÁLOGO</span>
+                  <h2>Cursos e planos</h2>
+                </div>
+                <button id="new-course-button" class="btn btn-primary btn-sm">+ Curso</button>
+              </div>
+              <div id="courses-list" class="simple-list"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="eyebrow">AQUISIÇÃO</span>
+                  <h2>Origens de leads</h2>
+                </div>
+                <button id="new-source-button" class="btn btn-primary btn-sm">+ Origem</button>
+              </div>
+              <div id="sources-list" class="simple-list"></div>
+            </article>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="lead-dialog" class="dialog dialog-large">
+    <form id="lead-form" method="dialog">
+      <div class="dialog-head">
+        <div><span class="eyebrow">LEAD</span><h2 id="lead-dialog-title">Cadastrar lead</h2></div>
+        <button class="icon-btn dialog-close" type="button">×</button>
+      </div>
+      <div class="form-grid">
+        <input id="lead-id" type="hidden">
+        <label class="field-span-2"><span>Nome completo *</span><input id="lead-name" required></label>
+        <label><span>WhatsApp</span><input id="lead-whatsapp" inputmode="tel" placeholder="(65) 99999-9999"></label>
+        <label><span>Telefone</span><input id="lead-phone" inputmode="tel"></label>
+        <label><span>E-mail</span><input id="lead-email" type="email"></label>
+        <label><span>Cidade</span><input id="lead-city"></label>
+        <label><span>Origem</span><select id="lead-source"></select></label>
+        <label><span>Campanha</span><input id="lead-campaign" placeholder="Ex.: Volta às Aulas"></label>
+        <label><span>Modalidade</span><select id="lead-modality"></select></label>
+        <label><span>Temperatura</span><select id="lead-temperature"></select></label>
+        <label><span>Status</span><select id="lead-status"></select></label>
+        <label class="field-span-2"><span>Cursos de interesse</span><select id="lead-courses" multiple size="5"></select><small>Use Ctrl para selecionar mais de um.</small></label>
+        <label><span>Próximo contato</span><input id="lead-next-contact" type="datetime-local"></label>
+        <label><span>Próxima ação</span><input id="lead-next-action" placeholder="Ex.: enviar proposta"></label>
+        <label class="field-span-2"><span>Observações</span><textarea id="lead-notes" rows="4"></textarea></label>
+        <label id="lost-reason-field" class="field-span-2 hidden"><span>Motivo da perda</span><textarea id="lead-lost-reason" rows="2"></textarea></label>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost dialog-close" type="button">Cancelar</button>
+        <button id="save-lead-button" class="btn btn-primary" type="submit">Salvar lead</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="lead-detail-dialog" class="dialog dialog-xlarge">
+    <div class="dialog-head">
+      <div><span class="eyebrow">HISTÓRICO COMERCIAL</span><h2 id="detail-lead-name">Lead</h2></div>
+      <button class="icon-btn dialog-close" type="button">×</button>
+    </div>
+    <div id="lead-detail-content"></div>
+  </dialog>
+
+  <dialog id="interaction-dialog" class="dialog">
+    <form id="interaction-form" method="dialog">
+      <div class="dialog-head">
+        <div><span class="eyebrow">ATENDIMENTO</span><h2>Registrar contato</h2></div>
+        <button class="icon-btn dialog-close" type="button">×</button>
+      </div>
+      <input id="interaction-lead-id" type="hidden">
+      <div class="form-grid">
+        <label><span>Canal</span><select id="interaction-channel"></select></label>
+        <label><span>Data e hora</span><input id="interaction-date" type="datetime-local" required></label>
+        <label class="field-span-2"><span>Resumo *</span><textarea id="interaction-summary" rows="4" required></textarea></label>
+        <label class="field-span-2"><span>Objeções</span><textarea id="interaction-objections" rows="2"></textarea></label>
+        <label><span>Valor da proposta</span><input id="interaction-proposal" type="number" min="0" step="0.01"></label>
+        <label><span>Resultado</span><input id="interaction-outcome"></label>
+        <label class="field-span-2"><span>Próxima ação</span><input id="interaction-next-action"></label>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost dialog-close" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Registrar atendimento</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="task-dialog" class="dialog">
+    <form id="task-form" method="dialog">
+      <div class="dialog-head">
+        <div><span class="eyebrow">AGENDA</span><h2 id="task-dialog-title">Nova tarefa</h2></div>
+        <button class="icon-btn dialog-close" type="button">×</button>
+      </div>
+      <div class="form-grid">
+        <input id="task-id" type="hidden">
+        <label class="field-span-2"><span>Título *</span><input id="task-title" required></label>
+        <label><span>Lead relacionado</span><select id="task-lead"></select></label>
+        <label><span>Tipo</span><select id="task-type"></select></label>
+        <label><span>Data e hora *</span><input id="task-due" type="datetime-local" required></label>
+        <label><span>Prioridade</span><select id="task-priority"></select></label>
+        <label class="field-span-2"><span>Descrição</span><textarea id="task-description" rows="3"></textarea></label>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost dialog-close" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Salvar tarefa</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="enrollment-dialog" class="dialog dialog-large">
+    <form id="enrollment-form" method="dialog">
+      <div class="dialog-head">
+        <div><span class="eyebrow">CONVERSÃO</span><h2 id="enrollment-dialog-title">Nova matrícula</h2></div>
+        <button class="icon-btn dialog-close" type="button">×</button>
+      </div>
+      <div class="form-grid">
+        <input id="enrollment-id" type="hidden">
+        <label><span>Lead</span><select id="enrollment-lead"></select></label>
+        <label><span>Aluno *</span><input id="enrollment-student" required></label>
+        <label><span>Curso ou plano</span><select id="enrollment-course"></select></label>
+        <label><span>Data da matrícula</span><input id="enrollment-date" type="date" required></label>
+        <label><span>Valor do contrato</span><input id="enrollment-contract" type="number" min="0" step="0.01" value="0"></label>
+        <label><span>Taxa de matrícula</span><input id="enrollment-fee" type="number" min="0" step="0.01" value="0"></label>
+        <label><span>Parcelas</span><input id="enrollment-installments" type="number" min="1" step="1" value="1"></label>
+        <label><span>Valor da parcela</span><input id="enrollment-installment-value" type="number" min="0" step="0.01" value="0"></label>
+        <label><span>Forma de pagamento</span><select id="enrollment-method"></select></label>
+        <label><span>Dia de vencimento</span><input id="enrollment-due-day" type="number" min="1" max="31"></label>
+        <label><span>Status</span><select id="enrollment-status"></select></label>
+        <label class="field-span-2"><span>Observações</span><textarea id="enrollment-notes" rows="3"></textarea></label>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost dialog-close" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Salvar matrícula</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="payment-dialog" class="dialog">
+    <form id="payment-form" method="dialog">
+      <div class="dialog-head">
+        <div><span class="eyebrow">FINANCEIRO</span><h2>Registrar recebimento</h2></div>
+        <button class="icon-btn dialog-close" type="button">×</button>
+      </div>
+      <div class="form-grid">
+        <input id="payment-id" type="hidden">
+        <label class="field-span-2"><span>Matrícula *</span><select id="payment-enrollment" required></select></label>
+        <label><span>Descrição</span><input id="payment-description" placeholder="Ex.: 1ª parcela"></label>
+        <label><span>Número da parcela</span><input id="payment-number" type="number" min="1"></label>
+        <label><span>Valor recebido *</span><input id="payment-amount" type="number" min="0" step="0.01" required></label>
+        <label><span>Data do recebimento *</span><input id="payment-date" type="datetime-local" required></label>
+        <label><span>Forma de pagamento</span><select id="payment-method"></select></label>
+        <label><span>Status</span><select id="payment-status"></select></label>
+        <label class="field-span-2"><span>Observações</span><textarea id="payment-notes" rows="3"></textarea></label>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost dialog-close" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Registrar recebimento</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="plan-dialog" class="dialog dialog-large">
+    <form id="plan-form" method="dialog">
+      <div class="dialog-head">
+        <div><span class="eyebrow">PLANEJAMENTO MENSAL</span><h2>Metas do mês</h2></div>
+        <button class="icon-btn dialog-close" type="button">×</button>
+      </div>
+      <div class="form-grid">
+        <input id="plan-id" type="hidden">
+        <label><span>Meta de leads</span><input id="plan-leads" type="number" min="0" value="0"></label>
+        <label><span>Meta de propostas</span><input id="plan-proposals" type="number" min="0" value="0"></label>
+        <label><span>Meta de matrículas</span><input id="plan-enrollments" type="number" min="0" value="0"></label>
+        <label><span>Meta de conversão (%)</span><input id="plan-conversion" type="number" min="0" max="100" step="0.01" value="0"></label>
+        <label><span>Meta de receita gerada</span><input id="plan-generated" type="number" min="0" step="0.01" value="0"></label>
+        <label><span>Meta de faturamento recebido</span><input id="plan-received" type="number" min="0" step="0.01" value="0"></label>
+        <label><span>Meta de ticket médio</span><input id="plan-ticket" type="number" min="0" step="0.01" value="0"></label>
+        <label><span>Orçamento de anúncios</span><input id="plan-budget" type="number" min="0" step="0.01" value="0"></label>
+        <label class="field-span-2"><span>Cursos prioritários</span><textarea id="plan-courses" rows="2"></textarea></label>
+        <label class="field-span-2"><span>Campanhas do mês</span><textarea id="plan-campaigns" rows="2"></textarea></label>
+        <label class="field-span-2"><span>Observações e aprendizados</span><textarea id="plan-notes" rows="3"></textarea></label>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost dialog-close" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Salvar planejamento</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="action-dialog" class="dialog dialog-large">
+    <form id="action-form" method="dialog">
+      <div class="dialog-head">
+        <div><span class="eyebrow">5W2H</span><h2 id="action-dialog-title">Nova ação</h2></div>
+        <button class="icon-btn dialog-close" type="button">×</button>
+      </div>
+      <div class="form-grid">
+        <input id="action-id" type="hidden">
+        <label class="field-span-2"><span>O quê? *</span><input id="action-what" required></label>
+        <label class="field-span-2"><span>Por quê?</span><textarea id="action-why" rows="2"></textarea></label>
+        <label><span>Onde?</span><input id="action-where"></label>
+        <label><span>Quem?</span><input id="action-who"></label>
+        <label><span>Início</span><input id="action-start" type="date"></label>
+        <label><span>Prazo</span><input id="action-end" type="date"></label>
+        <label class="field-span-2"><span>Como?</span><textarea id="action-how" rows="2"></textarea></label>
+        <label><span>Quanto?</span><input id="action-cost" type="number" min="0" step="0.01" value="0"></label>
+        <label><span>Status</span><select id="action-status"></select></label>
+        <label><span>Progresso (%)</span><input id="action-progress" type="number" min="0" max="100" value="0"></label>
+        <label class="field-span-2"><span>Resultado</span><textarea id="action-result" rows="2"></textarea></label>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost dialog-close" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Salvar ação</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="simple-dialog" class="dialog">
+    <form id="simple-form" method="dialog">
+      <div class="dialog-head">
+        <div><span id="simple-eyebrow" class="eyebrow">CADASTRO</span><h2 id="simple-title">Novo item</h2></div>
+        <button class="icon-btn dialog-close" type="button">×</button>
+      </div>
+      <input id="simple-type" type="hidden">
+      <div class="form-grid">
+        <label class="field-span-2"><span>Nome *</span><input id="simple-name" required></label>
+        <label id="simple-category-field"><span>Categoria</span><input id="simple-category"></label>
+        <label id="simple-modality-field"><span>Modalidade</span><select id="simple-modality"></select></label>
+        <label id="simple-price-field" class="field-span-2"><span>Preço de referência</span><input id="simple-price" type="number" min="0" step="0.01" value="0"></label>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost dialog-close" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
