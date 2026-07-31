@@ -1,4 +1,4 @@
-import { APP_NAME, LEAD_STATUS, TASK_STATUS } from './config.js?v=1.2.0';
+import { APP_NAME, LEAD_STATUS, TASK_STATUS } from './config.js?v=1.2.1';
 
 const money = value => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
 const dateBR = value => value ? new Intl.DateTimeFormat('pt-BR').format(new Date(`${String(value).slice(0,10)}T12:00:00`)) : '';

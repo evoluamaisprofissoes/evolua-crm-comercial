@@ -2,9 +2,9 @@ import {
   LEAD_STATUS, LEAD_TEMPERATURES, MODALITIES, INTERACTION_CHANNELS,
   TASK_TYPES, TASK_STATUS, PRIORITIES, ENROLLMENT_STATUS, PAYMENT_METHODS,
   PAYMENT_STATUS, ACTION_STATUS
-} from './config.js?v=1.2.0';
-import { supabase, crm } from './api.js?v=1.2.0';
-import { exportExcel, exportPDF, exportJSON } from './export.js?v=1.2.0';
+} from './config.js?v=1.2.1';
+import { supabase, crm } from './api.js?v=1.2.1';
+import { exportExcel, exportPDF, exportJSON } from './export.js?v=1.2.1';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -377,9 +377,14 @@ function bindEvents() {
 
   $('#new-sale-button').addEventListener('click', () => openSaleForm());
   $('#sale-form').addEventListener('submit', saveFinancialSale);
-  $('#sale-lead-mode').addEventListener('change', toggleSaleLeadMode);
+  $$('[data-sale-mode-button]').forEach(button => button.addEventListener('click', async () => {
+    $('#sale-lead-mode').value = button.dataset.saleModeButton;
+    toggleSaleLeadMode();
+    if (button.dataset.saleModeButton === 'existing') await reloadSaleLeads(false);
+  }));
   $('#sale-lead-search').addEventListener('input', refreshSaleLeadOptions);
   $('#sale-existing-lead').addEventListener('change', autofillSaleLead);
+  $('#sale-reload-leads-button').addEventListener('click', () => reloadSaleLeads(true));
   $('#sale-new-name').addEventListener('input', event => { if ($('#sale-lead-mode').value === 'new') $('#sale-student').value = event.target.value; });
   $('#sale-contract').addEventListener('input', autoSaleInstallmentValue);
   $('#sale-installments').addEventListener('input', autoSaleInstallmentValue);
@@ -1056,14 +1061,72 @@ function autofillPaymentFromEnrollment() {
 }
 
 function refreshSaleLeadOptions() {
-  const search = ($('#sale-lead-search')?.value || '').trim().toLowerCase();
-  const current = $('#sale-existing-lead')?.value || '';
-  const rows = state.data.leads.filter(item => {
-    const haystack = [item.full_name, item.whatsapp, item.phone, item.email].join(' ').toLowerCase();
-    return !search || haystack.includes(search);
-  });
-  $('#sale-existing-lead').innerHTML = `<option value="">Selecione um lead</option>${rows.map(item => `<option value="${item.id}">${escapeHTML(item.full_name)}${item.whatsapp ? ` • ${escapeHTML(item.whatsapp)}` : ''}</option>`).join('')}`;
-  if (rows.some(item => item.id === current)) $('#sale-existing-lead').value = current;
+  const select = $('#sale-existing-lead');
+  if (!select) return;
+
+  const search = ($('#sale-lead-search')?.value || '').trim().toLocaleLowerCase('pt-BR');
+  const current = select.value || '';
+  const allLeads = Array.isArray(state.data.leads) ? state.data.leads : [];
+  const rows = allLeads
+    .filter(item => {
+      const haystack = [item.full_name, item.whatsapp, item.phone, item.email]
+        .filter(Boolean)
+        .join(' ')
+        .toLocaleLowerCase('pt-BR');
+      return !search || haystack.includes(search);
+    })
+    .sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || ''), 'pt-BR'));
+
+  const placeholder = rows.length
+    ? '<option value="" disabled>Selecione um lead na lista abaixo</option>'
+    : `<option value="" disabled>${search ? 'Nenhum lead corresponde à busca' : 'Nenhum lead cadastrado'}</option>`;
+
+  select.innerHTML = `${placeholder}${rows.map(item => {
+    const contact = item.whatsapp || item.phone || item.email || '';
+    return `<option value="${item.id}">${escapeHTML(item.full_name || 'Lead sem nome')}${contact ? ` • ${escapeHTML(contact)}` : ''}</option>`;
+  }).join('')}`;
+  select.disabled = rows.length === 0;
+
+  if (rows.some(item => item.id === current)) select.value = current;
+  else select.value = '';
+
+  const count = $('#sale-lead-count');
+  if (count) count.textContent = search
+    ? `${rows.length} resultado(s) de ${allLeads.length} lead(s)`
+    : `${allLeads.length} lead(s) disponível(is)`;
+
+  const status = $('#sale-lead-status');
+  if (status) {
+    status.textContent = rows.length
+      ? 'Clique no nome desejado. Ao selecionar, o campo Aluno será preenchido automaticamente.'
+      : (search ? 'Limpe ou altere a busca para localizar outro lead.' : 'Não encontramos leads neste espaço de trabalho. Use “Cadastrar novo lead” ou atualize a lista.');
+    status.classList.toggle('text-danger', rows.length === 0);
+  }
+}
+
+async function reloadSaleLeads(showFeedback = false) {
+  const button = $('#sale-reload-leads-button');
+  const count = $('#sale-lead-count');
+  if (count) count.textContent = 'Atualizando diretamente do banco...';
+  if (button) setButtonLoading(button, true, 'Atualizando...');
+
+  try {
+    const leads = await crm.fetchLeads();
+    state.data.leads = Array.isArray(leads) ? leads : [];
+    refreshSaleLeadOptions();
+    if (showFeedback) toast(`${state.data.leads.length} lead(s) carregado(s).`);
+  } catch (error) {
+    console.error(error);
+    refreshSaleLeadOptions();
+    const status = $('#sale-lead-status');
+    if (status) {
+      status.textContent = `Não foi possível atualizar a lista: ${error.message}`;
+      status.classList.add('text-danger');
+    }
+    if (showFeedback) toast(`Falha ao buscar leads: ${error.message}`, 'error');
+  } finally {
+    if (button) setButtonLoading(button, false);
+  }
 }
 
 function toggleSaleLeadMode() {
@@ -1072,6 +1135,10 @@ function toggleSaleLeadMode() {
   $('#sale-new-lead-fields').classList.toggle('hidden', !isNew);
   $('#sale-new-name').required = isNew;
   $('#sale-existing-lead').required = !isNew;
+  $$('[data-sale-mode-button]').forEach(button => {
+    button.classList.toggle('active', button.dataset.saleModeButton === (isNew ? 'new' : 'existing'));
+    button.setAttribute('aria-pressed', String(button.classList.contains('active')));
+  });
   if (!isNew) autofillSaleLead();
 }
 
@@ -1090,12 +1157,10 @@ function autoSaleInstallmentValue() {
   $('#sale-installment-value').value = (total / installments).toFixed(2);
 }
 
-function openSaleForm(leadId = '') {
+async function openSaleForm(leadId = '') {
   $('#sale-form').reset();
-  $('#sale-lead-mode').value = (leadId || state.data.leads.length) ? 'existing' : 'new';
+  $('#sale-lead-mode').value = 'existing';
   $('#sale-lead-search').value = '';
-  refreshSaleLeadOptions();
-  $('#sale-existing-lead').value = leadId || '';
   $('#sale-enrollment-date').value = todayISO();
   $('#sale-enrollment-status').value = 'ativa';
   $('#sale-installments').value = 1;
@@ -1109,8 +1174,16 @@ function openSaleForm(leadId = '') {
   $('#sale-payment-number').value = 1;
   $('#sale-payment-description').value = 'Entrada / 1ª parcela';
   toggleSaleLeadMode();
-  autofillSaleLead();
+  refreshSaleLeadOptions();
   openDialog('#sale-dialog');
+
+  if ($('#sale-lead-mode').value === 'existing') {
+    await reloadSaleLeads(false);
+    if (leadId && state.data.leads.some(item => item.id === leadId)) {
+      $('#sale-existing-lead').value = leadId;
+      autofillSaleLead();
+    }
+  }
 }
 
 async function saveFinancialSale(event) {

@@ -1,5 +1,5 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.95.0/+esm';
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config.js?v=1.2.0';
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config.js?v=1.2.1';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
@@ -80,6 +80,17 @@ export class CRMService {
       goals: unwrap(goals, 'consulta das metas comerciais'),
       goalCourses: unwrap(goalCourses, 'consulta dos cursos das metas')
     };
+  }
+
+  async fetchLeads() {
+    return unwrap(
+      await this.client
+        .from('leads')
+        .select('*')
+        .eq('workspace_id', this.workspaceId)
+        .order('full_name', { ascending: true }),
+      'consulta atualizada dos leads'
+    );
   }
 
   async saveLead(payload, courseIds = [], id = null) {
