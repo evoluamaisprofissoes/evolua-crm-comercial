@@ -1,4 +1,4 @@
-import { APP_NAME, LEAD_STATUS, TASK_STATUS } from './config.js?v=1.1.0';
+import { APP_NAME, LEAD_STATUS, TASK_STATUS } from './config.js?v=1.2.0';
 
 const money = value => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
 const dateBR = value => value ? new Intl.DateTimeFormat('pt-BR').format(new Date(`${String(value).slice(0,10)}T12:00:00`)) : '';
@@ -30,7 +30,7 @@ export function exportJSON(data, referenceMonth) {
 
 export function exportExcel(data, referenceMonth, helpers) {
   if (!window.XLSX) throw new Error('Biblioteca de Excel não carregada. Atualize a página e tente novamente.');
-  const { sourceName, courseNames, leadName, enrollmentName } = helpers;
+  const { sourceName, courseNames, leadName, enrollmentName, goalCourseNames } = helpers;
 
   const sheets = {
     Leads: data.leads.map(lead => ({
@@ -109,6 +109,15 @@ export function exportExcel(data, referenceMonth, helpers) {
       Vencimento: dateBR(item.due_date),
       Recebido: dateTimeBR(item.paid_at),
       Observações: item.notes || ''
+    })),
+    'Metas Comerciais': (data.goals || []).map(goal => ({
+      Mês: dateBR(goal.reference_month),
+      Meta: goal.name,
+      Cursos: goalCourseNames(goal.id).join(', ') || 'Todos os cursos',
+      'Meta de vendas': Number(goal.target_enrollments || 0),
+      'Meta de receita gerada': Number(goal.target_generated_revenue || 0),
+      'Meta de faturamento recebido': Number(goal.target_received_revenue || 0),
+      Observações: goal.notes || ''
     })),
     Planejamento: data.plans.map(plan => ({
       Mês: dateBR(plan.reference_month),
@@ -225,12 +234,22 @@ export function exportPDF(data, referenceMonth, metrics, helpers) {
   LEAD_STATUS.forEach(([key, label]) => line(label, data.leads.filter(l => l.status === key).length));
   y += 5;
 
+  const goals = (data.goals || []).filter(goal => String(goal.reference_month).slice(0, 7) === referenceMonth);
+  title('Metas por frente comercial');
+  if (goals.length) {
+    goals.forEach(goal => {
+      line(goal.name, `${goal.target_enrollments || 0} vendas | ${money(goal.target_generated_revenue)} gerados | ${money(goal.target_received_revenue)} recebidos`);
+      line('Cursos vinculados', helpers.goalCourseNames(goal.id).join(', ') || 'Todos os cursos');
+    });
+  } else {
+    line('Metas comerciais', 'Ainda não cadastradas para este mês');
+  }
+  y += 5;
+
   const plan = helpers.currentPlan();
-  title('Metas e direção');
+  title('Planejamento e direção');
   if (plan) {
-    line('Meta de matrículas', plan.target_enrollments);
-    line('Meta de receita gerada', money(plan.target_generated_revenue));
-    line('Meta de faturamento recebido', money(plan.target_received_revenue));
+    line('Meta geral de matrículas', plan.target_enrollments);
     line('Cursos prioritários', plan.priority_courses || 'Não informado');
     line('Campanhas', plan.campaigns || 'Não informado');
   } else {

@@ -2,9 +2,9 @@ import {
   LEAD_STATUS, LEAD_TEMPERATURES, MODALITIES, INTERACTION_CHANNELS,
   TASK_TYPES, TASK_STATUS, PRIORITIES, ENROLLMENT_STATUS, PAYMENT_METHODS,
   PAYMENT_STATUS, ACTION_STATUS
-} from './config.js?v=1.1.0';
-import { supabase, crm } from './api.js?v=1.1.0';
-import { exportExcel, exportPDF, exportJSON } from './export.js?v=1.1.0';
+} from './config.js?v=1.2.0';
+import { supabase, crm } from './api.js?v=1.2.0';
+import { exportExcel, exportPDF, exportJSON } from './export.js?v=1.2.0';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -34,7 +34,7 @@ const state = {
 };
 
 function emptyData() {
-  return { courses: [], sources: [], leads: [], interests: [], interactions: [], tasks: [], taskHistory: [], enrollments: [], payments: [], plans: [], actions: [] };
+  return { courses: [], sources: [], leads: [], interests: [], interactions: [], tasks: [], taskHistory: [], enrollments: [], payments: [], plans: [], actions: [], goals: [], goalCourses: [] };
 }
 
 function localMonth() {
@@ -90,6 +90,28 @@ function sourceName(id) { return state.data.sources.find(item => item.id === id)
 function enrollmentName(id) { return state.data.enrollments.find(item => item.id === id)?.student_name || ''; }
 function courseNames(leadId) { return state.data.interests.filter(item => item.lead_id === leadId).map(item => item.courses?.name || state.data.courses.find(c => c.id === item.course_id)?.name).filter(Boolean); }
 function getCurrentPlan() { return state.data.plans.find(plan => String(plan.reference_month).slice(0, 7) === state.month); }
+function getCurrentGoals() { return state.data.goals.filter(goal => String(goal.reference_month).slice(0, 7) === state.month && goal.active !== false); }
+function goalCourseIds(goalId) { return state.data.goalCourses.filter(item => item.goal_id === goalId).map(item => item.course_id); }
+function goalCourseNames(goalId) {
+  return state.data.goalCourses
+    .filter(item => item.goal_id === goalId)
+    .map(item => item.courses?.name || state.data.courses.find(course => course.id === item.course_id)?.name)
+    .filter(Boolean);
+}
+function goalMetrics(goal) {
+  const courseIds = goalCourseIds(goal.id);
+  const appliesTo = enrollment => !courseIds.length || courseIds.includes(enrollment.course_id);
+  const enrollments = state.data.enrollments.filter(item => inSelectedMonth(item.enrollment_date) && item.status !== 'cancelada' && appliesTo(item));
+  const enrollmentIds = new Set(enrollments.map(item => item.id));
+  const received = state.data.payments
+    .filter(item => item.status === 'recebido' && inSelectedMonth(item.paid_at) && enrollmentIds.has(item.enrollment_id))
+    .reduce((sum, item) => sum + safeNumber(item.amount), 0);
+  return {
+    enrollments: enrollments.length,
+    generated: enrollments.reduce((sum, item) => sum + safeNumber(item.total_contract_value), 0),
+    received
+  };
+}
 function getPlanActions() {
   const plan = getCurrentPlan();
   return plan ? state.data.actions.filter(action => action.monthly_plan_id === plan.id) : [];
@@ -296,6 +318,9 @@ function populateStaticSelects() {
   $('#enrollment-status').innerHTML = optionList(ENROLLMENT_STATUS, 'ativa');
   $('#payment-method').innerHTML = optionList(PAYMENT_METHODS, 'pix');
   $('#payment-status').innerHTML = optionList(PAYMENT_STATUS, 'recebido');
+  $('#sale-enrollment-status').innerHTML = optionList(ENROLLMENT_STATUS, 'ativa');
+  $('#sale-method').innerHTML = optionList(PAYMENT_METHODS, 'pix');
+  $('#sale-payment-status').innerHTML = optionList(PAYMENT_STATUS, 'recebido');
   $('#action-status').innerHTML = optionList(ACTION_STATUS, 'nao_iniciada');
   $('#simple-modality').innerHTML = optionList(MODALITIES, '', true, 'Não informado');
 }
@@ -342,6 +367,25 @@ function bindEvents() {
 
   $('#new-payment-button').addEventListener('click', () => openPaymentForm());
   $('#payment-form').addEventListener('submit', savePayment);
+  $('#payment-search').addEventListener('input', () => refreshPaymentEnrollmentOptions());
+  $('#payment-lead').addEventListener('change', () => refreshPaymentEnrollmentOptions());
+  $('#payment-enrollment').addEventListener('change', autofillPaymentFromEnrollment);
+  $('#payment-create-sale-button').addEventListener('click', () => {
+    closeDialog($('#payment-dialog'));
+    openSaleForm();
+  });
+
+  $('#new-sale-button').addEventListener('click', () => openSaleForm());
+  $('#sale-form').addEventListener('submit', saveFinancialSale);
+  $('#sale-lead-mode').addEventListener('change', toggleSaleLeadMode);
+  $('#sale-lead-search').addEventListener('input', refreshSaleLeadOptions);
+  $('#sale-existing-lead').addEventListener('change', autofillSaleLead);
+  $('#sale-new-name').addEventListener('input', event => { if ($('#sale-lead-mode').value === 'new') $('#sale-student').value = event.target.value; });
+  $('#sale-contract').addEventListener('input', autoSaleInstallmentValue);
+  $('#sale-installments').addEventListener('input', autoSaleInstallmentValue);
+
+  $('#new-goal-button').addEventListener('click', () => openGoalForm());
+  $('#goal-form').addEventListener('submit', saveGoal);
 
   $('#edit-plan-button').addEventListener('click', openPlanForm);
   $('#delete-plan-button').addEventListener('click', deletePlan);
@@ -471,7 +515,15 @@ function refreshDynamicSelects() {
   $('#task-lead').innerHTML = `<option value="">Sem lead relacionado</option>${state.data.leads.map(item => `<option value="${item.id}">${escapeHTML(item.full_name)}</option>`).join('')}`;
   $('#enrollment-lead').innerHTML = `<option value="">Sem lead relacionado</option>${state.data.leads.map(item => `<option value="${item.id}">${escapeHTML(item.full_name)}</option>`).join('')}`;
   $('#enrollment-course').innerHTML = `<option value="">Não informado</option>${activeCourses.map(item => `<option value="${item.id}">${escapeHTML(item.name)}</option>`).join('')}`;
-  $('#payment-enrollment').innerHTML = `<option value="">Selecione</option>${state.data.enrollments.filter(item => item.status !== 'cancelada').map(item => `<option value="${item.id}">${escapeHTML(item.student_name)} • ${escapeHTML(item.courses?.name || 'Curso')}</option>`).join('')}`;
+
+  $('#payment-lead').innerHTML = `<option value="">Todos os leads</option>${state.data.leads.map(item => `<option value="${item.id}">${escapeHTML(item.full_name)}</option>`).join('')}`;
+  $('#sale-existing-lead').innerHTML = `<option value="">Selecione um lead</option>${state.data.leads.map(item => `<option value="${item.id}">${escapeHTML(item.full_name)}</option>`).join('')}`;
+  $('#sale-new-source').innerHTML = `<option value="">Não informado</option>${activeSources.map(item => `<option value="${item.id}">${escapeHTML(item.name)}</option>`).join('')}`;
+  $('#sale-course').innerHTML = `<option value="">Selecione</option>${activeCourses.map(item => `<option value="${item.id}">${escapeHTML(item.name)}</option>`).join('')}`;
+  $('#goal-courses').innerHTML = state.data.courses.map(item => `<option value="${item.id}">${escapeHTML(item.name)}${item.active ? '' : ' (inativo)'}</option>`).join('');
+
+  refreshPaymentEnrollmentOptions($('#payment-enrollment').value);
+  refreshSaleLeadOptions();
 }
 
 function goPage(page) {
@@ -552,9 +604,22 @@ function renderFunnelChart() {
 }
 
 function renderGoalProgress(m) {
+  const goals = getCurrentGoals();
+  if (goals.length) {
+    $('#goal-progress').innerHTML = goals.map(goal => {
+      const actual = goalMetrics(goal);
+      const rows = [];
+      if (safeNumber(goal.target_enrollments) > 0) rows.push(goalProgressRow('Vendas', actual.enrollments, safeNumber(goal.target_enrollments), String(actual.enrollments), String(goal.target_enrollments)));
+      if (safeNumber(goal.target_generated_revenue) > 0) rows.push(goalProgressRow('Receita gerada', actual.generated, safeNumber(goal.target_generated_revenue), formatMoney(actual.generated), formatMoney(goal.target_generated_revenue)));
+      if (safeNumber(goal.target_received_revenue) > 0) rows.push(goalProgressRow('Faturamento', actual.received, safeNumber(goal.target_received_revenue), formatMoney(actual.received), formatMoney(goal.target_received_revenue)));
+      return `<section class="dashboard-goal"><div class="dashboard-goal-head"><strong>${escapeHTML(goal.name)}</strong><span>${escapeHTML(goalCourseNames(goal.id).join(', ') || 'Todos os cursos')}</span></div>${rows.join('') || '<span class="cell-sub">Defina pelo menos um valor de meta.</span>'}</section>`;
+    }).join('');
+    return;
+  }
+
   const plan = getCurrentPlan();
   if (!plan) {
-    $('#goal-progress').innerHTML = `<div class="empty-state"><strong>Sem metas cadastradas</strong>Crie o planejamento de ${escapeHTML(monthLabel())} para acompanhar o progresso.<br><br><button class="btn btn-primary btn-sm" data-open-plan>Cadastrar metas</button></div>`;
+    $('#goal-progress').innerHTML = `<div class="empty-state"><strong>Sem metas cadastradas</strong>Crie metas para ${escapeHTML(monthLabel())} e acompanhe cada frente comercial.<br><br><button class="btn btn-primary btn-sm" data-open-goal>Cadastrar meta</button></div>`;
     return;
   }
   const items = [
@@ -566,6 +631,10 @@ function renderGoalProgress(m) {
   $('#goal-progress').innerHTML = items.map(([label,current,target,display]) => `
     <div class="goal-item"><div class="goal-line"><span>${escapeHTML(label)}</span><strong>${escapeHTML(display)} / ${label.includes('Receita') || label.includes('Faturamento') ? formatMoney(target) : target}</strong></div>
     <div class="progress-track"><div class="progress-fill" style="width:${percent(current,target)}%"></div></div></div>`).join('');
+}
+
+function goalProgressRow(label, current, target, currentLabel, targetLabel) {
+  return `<div class="goal-item"><div class="goal-line"><span>${escapeHTML(label)}</span><strong>${escapeHTML(currentLabel)} / ${escapeHTML(targetLabel)}</strong></div><div class="progress-track"><div class="progress-fill" style="width:${percent(current,target)}%"></div></div></div>`;
 }
 
 
@@ -683,7 +752,40 @@ function renderFinance() {
   $('#payments-table').innerHTML = state.data.payments.length ? `<table><thead><tr><th>Matrícula</th><th>Descrição</th><th>Data</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>${state.data.payments.map(item => `<tr><td class="cell-main">${escapeHTML(item.enrollments?.student_name || enrollmentName(item.enrollment_id))}</td><td>${escapeHTML(item.description || 'Recebimento')}</td><td>${formatDateTime(item.paid_at || item.due_date)}</td><td>${formatMoney(item.amount)}</td><td>${paymentBadge(item.status)}</td><td><div class="table-actions"><button class="table-action" data-edit-payment="${item.id}">Editar</button><button class="table-action danger" data-delete-payment="${item.id}">Excluir</button></div></td></tr>`).join('')}</tbody></table>` : emptyState('Nenhum recebimento registrado', 'Registre os valores que efetivamente entraram no caixa.');
 }
 
+function renderSalesGoals() {
+  const goals = getCurrentGoals();
+  if (!goals.length) {
+    $('#sales-goals-grid').innerHTML = emptyState(`Sem metas comerciais para ${monthLabel()}`, 'Crie metas separadas para Presencial, Evolua Academy, Provão, Bateria ou qualquer outra frente.');
+    return;
+  }
+
+  $('#sales-goals-grid').innerHTML = goals.map(goal => {
+    const actual = goalMetrics(goal);
+    const scope = goalCourseNames(goal.id);
+    const progressItems = [
+      safeNumber(goal.target_enrollments) > 0 ? goalProgressRow('Vendas', actual.enrollments, safeNumber(goal.target_enrollments), String(actual.enrollments), String(goal.target_enrollments)) : '',
+      safeNumber(goal.target_generated_revenue) > 0 ? goalProgressRow('Receita gerada', actual.generated, safeNumber(goal.target_generated_revenue), formatMoney(actual.generated), formatMoney(goal.target_generated_revenue)) : '',
+      safeNumber(goal.target_received_revenue) > 0 ? goalProgressRow('Faturamento recebido', actual.received, safeNumber(goal.target_received_revenue), formatMoney(actual.received), formatMoney(goal.target_received_revenue)) : ''
+    ].filter(Boolean).join('');
+
+    return `<article class="sales-goal-card">
+      <div class="sales-goal-head">
+        <div><h3>${escapeHTML(goal.name)}</h3><span>${escapeHTML(scope.join(', ') || 'Todos os cursos e produtos')}</span></div>
+        <div class="table-actions"><button class="table-action" data-edit-goal="${goal.id}">Editar</button><button class="table-action danger" data-delete-goal="${goal.id}">Excluir</button></div>
+      </div>
+      <div class="sales-goal-results">
+        <span><small>Vendas realizadas</small><strong>${actual.enrollments}</strong></span>
+        <span><small>Receita gerada</small><strong>${formatMoney(actual.generated)}</strong></span>
+        <span><small>Recebido</small><strong>${formatMoney(actual.received)}</strong></span>
+      </div>
+      <div class="sales-goal-progress">${progressItems || '<span class="cell-sub">Edite a meta e informe ao menos um objetivo.</span>'}</div>
+      ${goal.notes ? `<p class="sales-goal-notes">${escapeHTML(goal.notes)}</p>` : ''}
+    </article>`;
+  }).join('');
+}
+
 function renderPlanning() {
+  renderSalesGoals();
   const plan = getCurrentPlan();
   const m = metrics();
   if (!plan) {
@@ -931,11 +1033,207 @@ async function saveEnrollment(event) {
   } catch (error) { toast(error.message,'error'); } finally { setButtonLoading(button,false); }
 }
 
+function refreshPaymentEnrollmentOptions(selectedId = '') {
+  const search = ($('#payment-search')?.value || '').trim().toLowerCase();
+  const leadId = $('#payment-lead')?.value || '';
+  const current = selectedId || $('#payment-enrollment')?.value || '';
+  const rows = state.data.enrollments.filter(item => {
+    if (item.status === 'cancelada' && item.id !== current) return false;
+    if (leadId && item.lead_id !== leadId) return false;
+    const haystack = [item.student_name, item.courses?.name, item.leads?.full_name, leadName(item.lead_id)].join(' ').toLowerCase();
+    return !search || haystack.includes(search);
+  });
+  $('#payment-enrollment').innerHTML = `<option value="">Selecione</option>${rows.map(item => `<option value="${item.id}">${escapeHTML(item.student_name)} • ${escapeHTML(item.courses?.name || 'Curso')} • ${formatMoney(item.total_contract_value)}</option>`).join('')}`;
+  if (rows.some(item => item.id === current)) $('#payment-enrollment').value = current;
+  $('#payment-enrollment-hint').classList.toggle('hidden', rows.length > 0);
+}
+
+function autofillPaymentFromEnrollment() {
+  const enrollment = state.data.enrollments.find(item => item.id === $('#payment-enrollment').value);
+  if (!enrollment || $('#payment-id').value) return;
+  $('#payment-amount').value = safeNumber(enrollment.installment_value || enrollment.total_contract_value);
+  $('#payment-method').value = enrollment.payment_method || 'pix';
+}
+
+function refreshSaleLeadOptions() {
+  const search = ($('#sale-lead-search')?.value || '').trim().toLowerCase();
+  const current = $('#sale-existing-lead')?.value || '';
+  const rows = state.data.leads.filter(item => {
+    const haystack = [item.full_name, item.whatsapp, item.phone, item.email].join(' ').toLowerCase();
+    return !search || haystack.includes(search);
+  });
+  $('#sale-existing-lead').innerHTML = `<option value="">Selecione um lead</option>${rows.map(item => `<option value="${item.id}">${escapeHTML(item.full_name)}${item.whatsapp ? ` • ${escapeHTML(item.whatsapp)}` : ''}</option>`).join('')}`;
+  if (rows.some(item => item.id === current)) $('#sale-existing-lead').value = current;
+}
+
+function toggleSaleLeadMode() {
+  const isNew = $('#sale-lead-mode').value === 'new';
+  $('#sale-existing-lead-fields').classList.toggle('hidden', isNew);
+  $('#sale-new-lead-fields').classList.toggle('hidden', !isNew);
+  $('#sale-new-name').required = isNew;
+  $('#sale-existing-lead').required = !isNew;
+  if (!isNew) autofillSaleLead();
+}
+
+function autofillSaleLead() {
+  const lead = state.data.leads.find(item => item.id === $('#sale-existing-lead').value);
+  if (lead) {
+    $('#sale-student').value = lead.full_name;
+    const firstInterest = state.data.interests.find(item => item.lead_id === lead.id);
+    if (firstInterest?.course_id) $('#sale-course').value = firstInterest.course_id;
+  }
+}
+
+function autoSaleInstallmentValue() {
+  const total = safeNumber($('#sale-contract').value);
+  const installments = Math.max(1, safeNumber($('#sale-installments').value));
+  $('#sale-installment-value').value = (total / installments).toFixed(2);
+}
+
+function openSaleForm(leadId = '') {
+  $('#sale-form').reset();
+  $('#sale-lead-mode').value = (leadId || state.data.leads.length) ? 'existing' : 'new';
+  $('#sale-lead-search').value = '';
+  refreshSaleLeadOptions();
+  $('#sale-existing-lead').value = leadId || '';
+  $('#sale-enrollment-date').value = todayISO();
+  $('#sale-enrollment-status').value = 'ativa';
+  $('#sale-installments').value = 1;
+  $('#sale-contract').value = 0;
+  $('#sale-fee').value = 0;
+  $('#sale-installment-value').value = 0;
+  $('#sale-method').value = 'pix';
+  $('#sale-paid-amount').value = 0;
+  $('#sale-payment-status').value = 'recebido';
+  $('#sale-payment-date').value = toLocalInput();
+  $('#sale-payment-number').value = 1;
+  $('#sale-payment-description').value = 'Entrada / 1ª parcela';
+  toggleSaleLeadMode();
+  autofillSaleLead();
+  openDialog('#sale-dialog');
+}
+
+async function saveFinancialSale(event) {
+  event.preventDefault();
+  const button = event.submitter;
+  setButtonLoading(button, true, 'Salvando venda...');
+  try {
+    const leadMode = $('#sale-lead-mode').value;
+    const existingLeadId = $('#sale-existing-lead').value || null;
+    if (leadMode === 'existing' && !existingLeadId) throw new Error('Selecione um lead existente ou escolha cadastrar um novo lead.');
+    const courseId = $('#sale-course').value;
+    if (!courseId) throw new Error('Selecione o curso ou plano da matrícula.');
+
+    const paymentStatus = $('#sale-payment-status').value;
+    const paymentDateInput = $('#sale-payment-date').value;
+    const paymentDate = paymentDateInput ? new Date(paymentDateInput).toISOString() : null;
+    const amount = safeNumber($('#sale-paid-amount').value);
+
+    await crm.saveFinancialSale({
+      leadMode,
+      existingLeadId,
+      courseId,
+      leadPayload: {
+        full_name: $('#sale-new-name').value.trim(),
+        whatsapp: $('#sale-new-whatsapp').value.trim() || null,
+        email: $('#sale-new-email').value.trim() || null,
+        source_id: $('#sale-new-source').value || null,
+        modality: state.data.courses.find(item => item.id === courseId)?.modality || null,
+        temperature: 'quente',
+        status: 'matriculado',
+        notes: 'Lead criado pelo lançamento financeiro.'
+      },
+      enrollmentPayload: {
+        student_name: $('#sale-student').value.trim(),
+        enrollment_date: $('#sale-enrollment-date').value,
+        contract_value: safeNumber($('#sale-contract').value),
+        enrollment_fee: safeNumber($('#sale-fee').value),
+        installments: Math.max(1, safeNumber($('#sale-installments').value)),
+        installment_value: safeNumber($('#sale-installment-value').value),
+        payment_method: $('#sale-method').value || null,
+        due_day: $('#sale-due-day').value ? safeNumber($('#sale-due-day').value) : null,
+        status: $('#sale-enrollment-status').value,
+        notes: $('#sale-notes').value.trim() || null
+      },
+      paymentPayload: {
+        description: $('#sale-payment-description').value.trim() || 'Lançamento inicial',
+        installment_number: $('#sale-payment-number').value ? safeNumber($('#sale-payment-number').value) : null,
+        amount,
+        status: paymentStatus,
+        paid_at: paymentStatus === 'recebido' ? paymentDate : null,
+        due_date: paymentDate ? paymentDate.slice(0, 10) : null,
+        payment_method: $('#sale-method').value || null,
+        notes: $('#sale-notes').value.trim() || null
+      }
+    });
+
+    closeDialog($('#sale-dialog'));
+    toast(amount > 0 ? 'Lead, matrícula e financeiro registrados.' : 'Lead e matrícula registrados.');
+    await refreshData();
+  } catch (error) {
+    toast(error.message, 'error');
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+function openGoalForm(goal = null) {
+  $('#goal-form').reset();
+  $('#goal-id').value = goal?.id || '';
+  $('#goal-dialog-title').textContent = goal ? 'Editar meta' : 'Nova meta';
+  $('#goal-name').value = goal?.name || '';
+  $('#goal-enrollments').value = safeNumber(goal?.target_enrollments);
+  $('#goal-generated').value = safeNumber(goal?.target_generated_revenue);
+  $('#goal-received').value = safeNumber(goal?.target_received_revenue);
+  $('#goal-month').value = goal ? String(goal.reference_month).slice(0, 7) : state.month;
+  $('#goal-notes').value = goal?.notes || '';
+  const selected = new Set(goal ? goalCourseIds(goal.id) : []);
+  [...$('#goal-courses').options].forEach(option => { option.selected = selected.has(option.value); });
+  openDialog('#goal-dialog');
+}
+
+async function saveGoal(event) {
+  event.preventDefault();
+  const button = event.submitter;
+  setButtonLoading(button, true);
+  try {
+    const month = $('#goal-month').value;
+    if (!month) throw new Error('Informe o mês da meta.');
+    await crm.saveGoal({
+      reference_month: `${month}-01`,
+      name: $('#goal-name').value.trim(),
+      target_enrollments: safeNumber($('#goal-enrollments').value),
+      target_generated_revenue: safeNumber($('#goal-generated').value),
+      target_received_revenue: safeNumber($('#goal-received').value),
+      notes: $('#goal-notes').value.trim() || null,
+      active: true
+    }, selectedValues($('#goal-courses')), $('#goal-id').value || null);
+    closeDialog($('#goal-dialog'));
+    toast($('#goal-id').value ? 'Meta atualizada.' : 'Meta cadastrada.');
+    await refreshData();
+  } catch (error) {
+    toast(error.message, 'error');
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+async function deleteGoal(id) {
+  if (!confirmAction('Excluir esta meta comercial? Matrículas e recebimentos não serão apagados.')) return;
+  await crm.deleteGoal(id);
+  toast('Meta excluída.');
+  await refreshData();
+}
+
 function openPaymentForm(item = null, enrollmentId = '') {
   $('#payment-form').reset();
   $('#payment-id').value = item?.id || '';
-  $('#payment-enrollment').value = item?.enrollment_id || enrollmentId || '';
-  const enrollment = state.data.enrollments.find(e => e.id === (item?.enrollment_id || enrollmentId));
+  const targetEnrollmentId = item?.enrollment_id || enrollmentId || '';
+  const enrollment = state.data.enrollments.find(e => e.id === targetEnrollmentId);
+  $('#payment-search').value = '';
+  $('#payment-lead').value = enrollment?.lead_id || '';
+  refreshPaymentEnrollmentOptions(targetEnrollmentId);
+  $('#payment-enrollment').value = targetEnrollmentId;
   $('#payment-description').value = item?.description || '';
   $('#payment-number').value = item?.installment_number || '';
   $('#payment-amount').value = safeNumber(item?.amount || enrollment?.installment_value || enrollment?.total_contract_value);
@@ -948,6 +1246,7 @@ function openPaymentForm(item = null, enrollmentId = '') {
 async function savePayment(event) {
   event.preventDefault(); const button = event.submitter; setButtonLoading(button,true);
   try {
+    if (!$('#payment-enrollment').value) throw new Error('Selecione uma matrícula. Caso ela ainda não exista, use “Matrícula e lançamento”.');
     const status = $('#payment-status').value;
     const paidAt = $('#payment-date').value ? new Date($('#payment-date').value).toISOString() : null;
     await crm.savePayment({ enrollment_id: $('#payment-enrollment').value, description: $('#payment-description').value.trim() || null, installment_number: $('#payment-number').value ? safeNumber($('#payment-number').value) : null, amount: safeNumber($('#payment-amount').value), status, paid_at: status === 'recebido' ? paidAt : null, due_date: paidAt ? paidAt.slice(0,10) : null, payment_method: $('#payment-method').value || null, notes: $('#payment-notes').value.trim() || null }, $('#payment-id').value || null);
@@ -1064,6 +1363,8 @@ async function handleDelegatedClick(event) {
     else if (target.dataset.deleteEnrollment) await deleteEnrollment(target.dataset.deleteEnrollment);
     else if (target.dataset.editPayment) openPaymentForm(state.data.payments.find(item => item.id === target.dataset.editPayment));
     else if (target.dataset.deletePayment) await deletePayment(target.dataset.deletePayment);
+    else if (target.dataset.editGoal) openGoalForm(state.data.goals.find(item => item.id === target.dataset.editGoal));
+    else if (target.dataset.deleteGoal) await deleteGoal(target.dataset.deleteGoal);
     else if (target.dataset.editAction) openActionForm(state.data.actions.find(item => item.id === target.dataset.editAction));
     else if (target.dataset.deleteAction) await deleteAction(target.dataset.deleteAction);
     else if (target.dataset.editCourse) openSimpleForm('course', state.data.courses.find(item => item.id === target.dataset.editCourse));
@@ -1078,6 +1379,7 @@ async function handleDelegatedClick(event) {
       renderTasks();
     }
     else if (target.hasAttribute('data-open-plan')) openPlanForm();
+    else if (target.hasAttribute('data-open-goal')) openGoalForm();
   } catch (error) { toast(error.message,'error'); }
 }
 
@@ -1184,7 +1486,7 @@ async function deleteSource(id) {
 
 function runExport(type) {
   try {
-    const helpers = { sourceName, courseNames, leadName, enrollmentName, currentPlan: getCurrentPlan, monthLabel };
+    const helpers = { sourceName, courseNames, leadName, enrollmentName, goalCourseNames, currentPlan: getCurrentPlan, monthLabel };
     if (type === 'excel') exportExcel(state.data,state.month,helpers);
     if (type === 'pdf') exportPDF(state.data,state.month,metrics(),helpers);
     if (type === 'json') exportJSON(state.data,state.month);

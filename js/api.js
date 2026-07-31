@@ -1,5 +1,5 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.95.0/+esm';
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config.js?v=1.1.0';
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config.js?v=1.2.0';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
@@ -48,7 +48,7 @@ export class CRMService {
     const ws = this.workspaceId;
     const [
       courses, sources, leads, interests, interactions, tasks, taskHistory,
-      enrollments, payments, plans, actions
+      enrollments, payments, plans, actions, goals, goalCourses
     ] = await Promise.all([
       this.client.from('courses').select('*').eq('workspace_id', ws).order('name'),
       this.client.from('lead_sources').select('*').eq('workspace_id', ws).order('name'),
@@ -60,7 +60,9 @@ export class CRMService {
       this.client.from('enrollments').select('*, courses(name), leads(full_name)').eq('workspace_id', ws).order('enrollment_date', { ascending: false }),
       this.client.from('payments').select('*, enrollments(student_name)').eq('workspace_id', ws).order('paid_at', { ascending: false, nullsFirst: false }),
       this.client.from('monthly_plans').select('*').eq('workspace_id', ws).order('reference_month', { ascending: false }),
-      this.client.from('sw2h_actions').select('*').eq('workspace_id', ws).order('created_at', { ascending: false })
+      this.client.from('sw2h_actions').select('*').eq('workspace_id', ws).order('created_at', { ascending: false }),
+      this.client.from('sales_goals').select('*').eq('workspace_id', ws).order('reference_month', { ascending: false }).order('name'),
+      this.client.from('sales_goal_courses').select('*, courses(name)').eq('workspace_id', ws)
     ]);
 
     return {
@@ -74,7 +76,9 @@ export class CRMService {
       enrollments: unwrap(enrollments, 'consulta das matrículas'),
       payments: unwrap(payments, 'consulta dos pagamentos'),
       plans: unwrap(plans, 'consulta dos planejamentos'),
-      actions: unwrap(actions, 'consulta do 5W2H')
+      actions: unwrap(actions, 'consulta do 5W2H'),
+      goals: unwrap(goals, 'consulta das metas comerciais'),
+      goalCourses: unwrap(goalCourses, 'consulta dos cursos das metas')
     };
   }
 
@@ -206,6 +210,77 @@ export class CRMService {
 
   async deletePlan(id) {
     return unwrap(await this.client.from('monthly_plans').delete().eq('id', id), 'exclusão do planejamento');
+  }
+
+
+  async saveGoal(payload, courseIds = [], id = null) {
+    let goal;
+    if (id) {
+      goal = unwrap(
+        await this.client.from('sales_goals').update(payload).eq('id', id).select().single(),
+        'atualização da meta comercial'
+      );
+      unwrap(
+        await this.client.from('sales_goal_courses').delete().eq('goal_id', id),
+        'atualização dos cursos da meta'
+      );
+    } else {
+      goal = unwrap(await this.client.from('sales_goals').insert({
+        ...payload,
+        workspace_id: this.workspaceId,
+        created_by: this.user.id
+      }).select().single(), 'cadastro da meta comercial');
+    }
+
+    if (courseIds.length) {
+      const rows = courseIds.map(courseId => ({
+        workspace_id: this.workspaceId,
+        goal_id: goal.id,
+        course_id: courseId
+      }));
+      unwrap(await this.client.from('sales_goal_courses').insert(rows), 'vínculo dos cursos da meta');
+    }
+    return goal;
+  }
+
+  async deleteGoal(id) {
+    return unwrap(await this.client.from('sales_goals').delete().eq('id', id), 'exclusão da meta comercial');
+  }
+
+  async saveFinancialSale({ leadMode, existingLeadId, leadPayload, courseId, enrollmentPayload, paymentPayload }) {
+    let createdLead = null;
+    let createdEnrollment = null;
+    try {
+      let leadId = existingLeadId || null;
+      if (leadMode === 'new') {
+        createdLead = await this.saveLead(leadPayload, courseId ? [courseId] : []);
+        leadId = createdLead.id;
+      }
+
+      createdEnrollment = await this.saveEnrollment({
+        ...enrollmentPayload,
+        lead_id: leadId,
+        course_id: courseId || null
+      });
+
+      let payment = null;
+      if (Number(paymentPayload?.amount || 0) > 0) {
+        payment = await this.savePayment({
+          ...paymentPayload,
+          enrollment_id: createdEnrollment.id
+        });
+      }
+
+      return { lead: createdLead, enrollment: createdEnrollment, payment };
+    } catch (error) {
+      if (createdEnrollment?.id) {
+        try { await this.deleteEnrollment(createdEnrollment.id); } catch (_) {}
+      }
+      if (createdLead?.id) {
+        try { await this.deleteLead(createdLead.id); } catch (_) {}
+      }
+      throw error;
+    }
   }
 
   async saveAction(payload, id = null) {
