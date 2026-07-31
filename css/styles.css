@@ -421,3 +421,25 @@ tr:hover td { background: var(--surface-soft); }
   .subform-grid { grid-template-columns: 1fr; }
   .inline-hint .btn { width: 100%; margin-left: 0; }
 }
+
+
+/* V1.2.1 - Busca de leads no financeiro */
+.field-label { display: block; margin-bottom: 7px; font-weight: 700; font-size: .84rem; color: var(--text); }
+.segmented-control { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 5px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-soft); }
+.segment { border: 0; border-radius: 10px; padding: 11px 14px; background: transparent; color: var(--muted); font: inherit; font-size: .85rem; font-weight: 800; cursor: pointer; transition: .18s ease; }
+.segment:hover { color: var(--primary); background: rgba(109, 40, 217, .07); }
+.segment.active { color: white; background: var(--primary); box-shadow: 0 7px 18px rgba(109, 40, 217, .24); }
+.subform-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 13px; }
+.subform-head strong { display: block; color: var(--text); }
+.subform-head small { display: block; margin-top: 3px; color: var(--muted); }
+.btn-small { padding: 8px 11px; font-size: .78rem; white-space: nowrap; }
+.lead-results-select { min-height: 178px; padding: 6px; background: white; }
+.lead-results-select option { padding: 9px 10px; border-radius: 8px; margin: 2px 0; }
+.lead-results-select option:checked { color: white; background: linear-gradient(90deg, var(--primary), var(--primary-dark)); }
+.field-hint { margin: -3px 0 0; color: var(--muted); font-size: .76rem; line-height: 1.45; }
+.text-danger { color: var(--danger) !important; }
+@media (max-width: 620px) {
+  .segmented-control { grid-template-columns: 1fr; }
+  .subform-head { align-items: flex-start; flex-direction: column; }
+  .lead-results-select { min-height: 150px; }
+}
