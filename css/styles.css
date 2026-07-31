@@ -386,3 +386,38 @@ tr:hover td { background: var(--surface-soft); }
 .table-action.success { background: var(--success-soft); color: var(--success); }
 .table-action.warning { background: var(--warning-soft); color: var(--warning); }
 .btn-notification-on { color: var(--success); background: var(--success-soft); }
+
+
+/* Evolua CRM v1.2 */
+.sales-goals-panel { margin-bottom: 18px; }
+.sales-goals-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+.sales-goal-card { border: 1px solid var(--border); background: linear-gradient(145deg, #fff, #fbf9ff); border-radius: 16px; padding: 16px; min-width: 0; }
+.sales-goal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.sales-goal-head h3 { margin: 0; font-size: 1rem; }
+.sales-goal-head > div:first-child > span { display: block; margin-top: 5px; color: var(--muted); font-size: .7rem; line-height: 1.4; }
+.sales-goal-results { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; margin: 14px 0; }
+.sales-goal-results > span { background: var(--surface-soft); border: 1px solid var(--border); border-radius: 11px; padding: 10px; min-width: 0; }
+.sales-goal-results small { display: block; color: var(--muted); font-size: .62rem; }
+.sales-goal-results strong { display: block; margin-top: 4px; font-size: .86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sales-goal-progress { display: grid; gap: 11px; }
+.sales-goal-notes { margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--border); color: var(--muted); font-size: .75rem; line-height: 1.5; }
+.dashboard-goal { display: grid; gap: 10px; padding-bottom: 15px; border-bottom: 1px solid var(--border); }
+.dashboard-goal:last-child { padding-bottom: 0; border-bottom: 0; }
+.dashboard-goal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.dashboard-goal-head strong { font-size: .84rem; }
+.dashboard-goal-head span { max-width: 55%; color: var(--muted); font-size: .65rem; text-align: right; line-height: 1.35; }
+.inline-hint { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border: 1px dashed #a78bfa; border-radius: 13px; background: #faf8ff; color: var(--muted); font-size: .76rem; }
+.inline-hint strong { color: var(--text); }
+.inline-hint .btn { margin-left: auto; }
+.subform { padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-soft); }
+.subform-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 13px; }
+.form-section-title { margin-top: 4px; padding: 10px 0 2px; border-top: 1px solid var(--border); color: var(--primary); font-size: .76rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+
+@media (max-width: 850px) {
+  .sales-goals-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+  .sales-goal-results { grid-template-columns: 1fr; }
+  .subform-grid { grid-template-columns: 1fr; }
+  .inline-hint .btn { width: 100%; margin-left: 0; }
+}
