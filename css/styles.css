@@ -343,3 +343,46 @@ tr:hover td { background: var(--surface-soft); }
   .toast-container { left: 12px; right: 12px; bottom: 12px; }
   .toast { min-width: 0; max-width: none; }
 }
+
+
+/* Evolua CRM v1.1 */
+.nav-item { position: relative; }
+.nav-badge {
+  margin-left: auto;
+  min-width: 23px;
+  height: 23px;
+  padding: 0 7px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #ef4444;
+  color: white;
+  font-size: .68rem;
+  font-weight: 900;
+  box-shadow: 0 5px 14px rgba(239,68,68,.28);
+}
+.reminder-center {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid #f6d58d;
+  background: linear-gradient(135deg, #fffaf0, #fff5d6);
+  color: #69450a;
+  box-shadow: 0 12px 30px rgba(180,83,9,.08);
+}
+.reminder-center strong { display: block; margin-bottom: 5px; color: #4b3208; }
+.reminder-center p { margin: 0; font-size: .8rem; line-height: 1.5; }
+.reminder-center .reminder-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.task-card { align-items: start; }
+.task-card.in-progress { border-left: 4px solid var(--info); }
+.task-card.completed { opacity: .78; }
+.task-card.canceled { opacity: .65; }
+.task-card .table-actions { flex-wrap: wrap; max-width: 310px; }
+.task-status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 7px; }
+.reminder-note { color: var(--warning); font-size: .7rem; font-weight: 750; }
+.simple-item-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+.timeline-actions { display: flex; gap: 6px; margin-top: 9px; }
+.table-action.neutral { background: #eeeaf2; color: #675c70; }
+.table-action.success { background: var(--success-soft); color: var(--success); }
+.table-action.warning { background: var(--warning-soft); color: var(--warning); }
+.btn-notification-on { color: var(--success); background: var(--success-soft); }
