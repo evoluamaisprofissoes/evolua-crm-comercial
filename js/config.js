@@ -45,6 +45,14 @@ export const TASK_TYPES = [
   ['outro', 'Outro']
 ];
 
+
+export const TASK_STATUS = [
+  ['pendente', 'Pendente'],
+  ['em_andamento', 'Em andamento'],
+  ['concluida', 'Concluída'],
+  ['cancelada', 'Cancelada']
+];
+
 export const PRIORITIES = [
   ['baixa', 'Baixa'],
   ['media', 'Média'],

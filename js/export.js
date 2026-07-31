@@ -1,9 +1,10 @@
-import { APP_NAME, LEAD_STATUS } from './config.js';
+import { APP_NAME, LEAD_STATUS, TASK_STATUS } from './config.js?v=1.1.0';
 
 const money = value => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
 const dateBR = value => value ? new Intl.DateTimeFormat('pt-BR').format(new Date(`${String(value).slice(0,10)}T12:00:00`)) : '';
 const dateTimeBR = value => value ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : '';
 const statusMap = Object.fromEntries(LEAD_STATUS);
+const taskStatusMap = Object.fromEntries(TASK_STATUS);
 
 function downloadBlob(content, type, fileName) {
   const blob = new Blob([content], { type });
@@ -65,10 +66,24 @@ export function exportExcel(data, referenceMonth, helpers) {
       Lead: leadName(task.lead_id),
       Tipo: task.task_type,
       Prioridade: task.priority,
-      Status: task.status,
+      Status: taskStatusMap[task.status] || task.status,
       Prazo: dateTimeBR(task.due_at),
+      Lembrete: dateTimeBR(task.reminder_at),
+      'Aviso enviado': dateTimeBR(task.reminder_sent_at),
+      'Prazo anterior': dateTimeBR(task.previous_due_at),
+      Reagendada: dateTimeBR(task.rescheduled_at),
       Concluída: dateTimeBR(task.completed_at),
       Descrição: task.description || ''
+    })),
+    'Histórico Tarefas': (data.taskHistory || []).map(item => ({
+      Tarefa: item.task_title || '',
+      Ação: item.action_label || item.action || '',
+      'Status anterior': item.old_status ? (taskStatusMap[item.old_status] || item.old_status) : '',
+      'Novo status': item.new_status ? (taskStatusMap[item.new_status] || item.new_status) : '',
+      'Prazo anterior': dateTimeBR(item.old_due_at),
+      'Novo prazo': dateTimeBR(item.new_due_at),
+      Detalhes: item.details || '',
+      Data: dateTimeBR(item.changed_at)
     })),
     Matriculas: data.enrollments.map(item => ({
       Aluno: item.student_name,
@@ -225,7 +240,7 @@ export function exportPDF(data, referenceMonth, metrics, helpers) {
 
   title('Próximas prioridades');
   const pending = data.tasks
-    .filter(task => task.status === 'pendente')
+    .filter(task => ['pendente', 'em_andamento'].includes(task.status))
     .sort((a, b) => new Date(a.due_at) - new Date(b.due_at))
     .slice(0, 8);
   if (!pending.length) line('Agenda', 'Nenhuma tarefa pendente');

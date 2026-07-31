@@ -1,10 +1,10 @@
 import {
   LEAD_STATUS, LEAD_TEMPERATURES, MODALITIES, INTERACTION_CHANNELS,
-  TASK_TYPES, PRIORITIES, ENROLLMENT_STATUS, PAYMENT_METHODS,
+  TASK_TYPES, TASK_STATUS, PRIORITIES, ENROLLMENT_STATUS, PAYMENT_METHODS,
   PAYMENT_STATUS, ACTION_STATUS
-} from './config.js';
-import { supabase, crm } from './api.js';
-import { exportExcel, exportPDF, exportJSON } from './export.js';
+} from './config.js?v=1.1.0';
+import { supabase, crm } from './api.js?v=1.1.0';
+import { exportExcel, exportPDF, exportJSON } from './export.js?v=1.1.0';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -13,6 +13,7 @@ const tempMap = Object.fromEntries(LEAD_TEMPERATURES);
 const modalityMap = Object.fromEntries(MODALITIES);
 const channelMap = Object.fromEntries(INTERACTION_CHANNELS);
 const taskTypeMap = Object.fromEntries(TASK_TYPES);
+const taskStatusMap = Object.fromEntries(TASK_STATUS);
 const priorityMap = Object.fromEntries(PRIORITIES);
 const enrollmentStatusMap = Object.fromEntries(ENROLLMENT_STATUS);
 const paymentMethodMap = Object.fromEntries(PAYMENT_METHODS);
@@ -28,11 +29,12 @@ const state = {
   currentPage: 'dashboard',
   leadView: 'table',
   charts: {},
-  currentDetailLead: null
+  currentDetailLead: null,
+  reminderTimer: null
 };
 
 function emptyData() {
-  return { courses: [], sources: [], leads: [], interests: [], interactions: [], tasks: [], enrollments: [], payments: [], plans: [], actions: [] };
+  return { courses: [], sources: [], leads: [], interests: [], interactions: [], tasks: [], taskHistory: [], enrollments: [], payments: [], plans: [], actions: [] };
 }
 
 function localMonth() {
@@ -118,6 +120,125 @@ function whatsAppLink(value) {
   return `https://wa.me/${digits.startsWith('55') ? digits : `55${digits}`}`;
 }
 
+
+function isActiveTask(task) { return ['pendente', 'em_andamento'].includes(task.status); }
+function isTaskOverdue(task, now = new Date()) { return isActiveTask(task) && new Date(task.due_at) < now; }
+function dateKey(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+function defaultReminderDate(dueValue) {
+  const due = dueValue instanceof Date ? dueValue : new Date(dueValue);
+  if (Number.isNaN(due.getTime())) return null;
+  return new Date(due.getTime() - 15 * 60 * 1000);
+}
+function taskHistory(taskId) {
+  return state.data.taskHistory
+    .filter(item => item.task_id === taskId)
+    .sort((a,b) => new Date(b.changed_at) - new Date(a.changed_at));
+}
+function taskStatusBadge(status) {
+  const cls = { pendente:'badge-warning', em_andamento:'badge-info', concluida:'badge-success', cancelada:'badge-neutral' };
+  return `<span class="badge ${cls[status] || 'badge-neutral'}">${escapeHTML(taskStatusMap[status] || status)}</span>`;
+}
+function reminderPermission() {
+  if (!('Notification' in window)) return 'unsupported';
+  return Notification.permission;
+}
+function updateNotificationButton() {
+  const button = $('#enable-notifications-button');
+  if (!button) return;
+  const permission = reminderPermission();
+  button.disabled = permission === 'unsupported';
+  button.classList.toggle('btn-notification-on', permission === 'granted');
+  if (permission === 'granted') button.textContent = '🔔 Lembretes ativos';
+  else if (permission === 'denied') button.textContent = '🔕 Bloqueado no navegador';
+  else if (permission === 'unsupported') button.textContent = 'Lembretes indisponíveis';
+  else button.textContent = '🔔 Ativar lembretes';
+}
+async function requestNotifications() {
+  if (!('Notification' in window)) {
+    toast('Este navegador não oferece notificações.', 'warning');
+    return;
+  }
+  const permission = await Notification.requestPermission();
+  updateNotificationButton();
+  if (permission === 'granted') {
+    toast('Lembretes do navegador ativados.');
+    await checkTaskReminders();
+  } else {
+    toast('Permissão de notificação não concedida. Os alertas internos continuam ativos.', 'warning');
+  }
+}
+function startReminderEngine() {
+  if (state.reminderTimer) clearInterval(state.reminderTimer);
+  state.reminderTimer = setInterval(() => checkTaskReminders(), 30000);
+}
+async function checkTaskReminders() {
+  if (!state.user || !state.data.tasks.length) return;
+  const now = new Date();
+  const dueReminders = state.data.tasks.filter(task =>
+    isActiveTask(task) &&
+    task.reminder_at &&
+    !task.reminder_sent_at &&
+    new Date(task.reminder_at) <= now
+  );
+  for (const task of dueReminders) {
+    const lead = leadName(task.lead_id);
+    const body = `${lead ? `${lead} • ` : ''}${formatDateTime(task.due_at)}`;
+    try {
+      if (reminderPermission() === 'granted') {
+        const notification = new Notification(`Evolua CRM: ${task.title}`, {
+          body,
+          icon: 'assets/favicon.svg',
+          tag: `evolua-task-${task.id}`,
+          renotify: false
+        });
+        notification.onclick = () => {
+          window.focus();
+          goPage('agenda');
+          notification.close();
+        };
+      } else {
+        toast(`Lembrete: ${task.title} • ${body}`, 'warning');
+      }
+      await crm.markReminderSent(task.id);
+      task.reminder_sent_at = new Date().toISOString();
+    } catch (error) {
+      console.error('Falha ao disparar lembrete', error);
+    }
+  }
+  if (dueReminders.length) renderTasks();
+}
+function renderReminderCenter() {
+  const now = new Date();
+  const endToday = new Date();
+  endToday.setHours(23,59,59,999);
+  const overdue = state.data.tasks.filter(task => isTaskOverdue(task, now));
+  const dueToday = state.data.tasks.filter(task => isActiveTask(task) && new Date(task.due_at) >= now && new Date(task.due_at) <= endToday);
+  const urgent = overdue.length + dueToday.length;
+  const badge = $('#agenda-badge');
+  badge.textContent = String(urgent);
+  badge.classList.toggle('hidden', urgent === 0);
+  const center = $('#task-alerts');
+  if (!urgent) {
+    center.classList.add('hidden');
+    center.innerHTML = '';
+    return;
+  }
+  center.classList.remove('hidden');
+  center.innerHTML = `<strong>Seu radar encontrou ${urgent} tarefa(s) pedindo atenção.</strong>
+    <p>${overdue.length} atrasada(s) e ${dueToday.length} prevista(s) para hoje.</p>
+    <div class="reminder-actions">
+      ${overdue.length ? '<button class="btn btn-danger btn-sm" data-set-task-filter="overdue">Ver atrasadas</button>' : ''}
+      ${dueToday.length ? '<button class="btn btn-secondary btn-sm" data-set-task-filter="today">Ver tarefas de hoje</button>' : ''}
+    </div>`;
+}
+
+
+
 function metrics() {
   const monthLeads = state.data.leads.filter(item => inSelectedMonth(item.created_at));
   const monthEnrollments = state.data.enrollments.filter(item => inSelectedMonth(item.enrollment_date) && item.status !== 'cancelada');
@@ -125,9 +246,9 @@ function metrics() {
   const monthPayments = state.data.payments.filter(item => item.status === 'recebido' && inSelectedMonth(item.paid_at));
   const receivedRevenue = monthPayments.reduce((sum, item) => sum + safeNumber(item.amount), 0);
   const totalRevenue = state.data.payments.filter(item => item.status === 'recebido').reduce((sum, item) => sum + safeNumber(item.amount), 0);
-  const pendingTasks = state.data.tasks.filter(item => item.status === 'pendente');
+  const activeTasks = state.data.tasks.filter(isActiveTask);
   const now = new Date();
-  const overdueTasks = pendingTasks.filter(item => new Date(item.due_at) < now).length;
+  const overdueTasks = activeTasks.filter(item => new Date(item.due_at) < now).length;
   const conversionRate = monthLeads.length ? (monthEnrollments.length / monthLeads.length) * 100 : 0;
   const averageTicket = monthEnrollments.length ? generatedRevenue / monthEnrollments.length : 0;
   const proposals = state.data.interactions.filter(item => inSelectedMonth(item.occurred_at) && safeNumber(item.proposal_amount) > 0).length;
@@ -137,7 +258,7 @@ function metrics() {
     generatedRevenue,
     receivedRevenue,
     totalRevenue,
-    pendingTasks: pendingTasks.length,
+    pendingTasks: activeTasks.length,
     overdueTasks,
     conversionRate,
     averageTicket,
@@ -145,10 +266,12 @@ function metrics() {
   };
 }
 
+
 async function init() {
   populateStaticSelects();
   bindEvents();
   $('#global-month').value = state.month;
+  updateNotificationButton();
   const { data: { session } } = await supabase.auth.getSession();
   if (session?.user) await enterApp(session.user);
   else showLogin();
@@ -159,6 +282,7 @@ async function init() {
   });
 }
 
+
 function populateStaticSelects() {
   $('#lead-status-filter').innerHTML = `<option value="">Todos os status</option>${optionList(LEAD_STATUS)}`;
   $('#lead-modality').innerHTML = optionList(MODALITIES, '', true, 'Não informado');
@@ -167,6 +291,7 @@ function populateStaticSelects() {
   $('#interaction-channel').innerHTML = optionList(INTERACTION_CHANNELS, 'whatsapp');
   $('#task-type').innerHTML = optionList(TASK_TYPES, 'follow_up');
   $('#task-priority').innerHTML = optionList(PRIORITIES, 'media');
+  $('#task-status').innerHTML = optionList(TASK_STATUS, 'pendente');
   $('#enrollment-method').innerHTML = optionList(PAYMENT_METHODS, '', true, 'Não informado');
   $('#enrollment-status').innerHTML = optionList(ENROLLMENT_STATUS, 'ativa');
   $('#payment-method').innerHTML = optionList(PAYMENT_METHODS, 'pix');
@@ -174,6 +299,7 @@ function populateStaticSelects() {
   $('#action-status').innerHTML = optionList(ACTION_STATUS, 'nao_iniciada');
   $('#simple-modality').innerHTML = optionList(MODALITIES, '', true, 'Não informado');
 }
+
 
 function bindEvents() {
   $('#login-form').addEventListener('submit', handleLogin);
@@ -198,6 +324,12 @@ function bindEvents() {
   $('#new-task-button').addEventListener('click', () => openTaskForm());
   $('#task-form').addEventListener('submit', saveTask);
   $('#task-filter').addEventListener('change', renderTasks);
+  $('#enable-notifications-button').addEventListener('click', requestNotifications);
+  $('#task-due').addEventListener('change', event => {
+    if ($('#task-dialog').dataset.autoReminder === 'true' && event.target.value) {
+      $('#task-reminder').value = toLocalInput(defaultReminderDate(event.target.value));
+    }
+  });
 
   $('#new-enrollment-button').addEventListener('click', () => openEnrollmentForm());
   $('#enrollment-form').addEventListener('submit', saveEnrollment);
@@ -212,6 +344,7 @@ function bindEvents() {
   $('#payment-form').addEventListener('submit', savePayment);
 
   $('#edit-plan-button').addEventListener('click', openPlanForm);
+  $('#delete-plan-button').addEventListener('click', deletePlan);
   $('#plan-form').addEventListener('submit', savePlan);
   $('#new-action-button').addEventListener('click', () => openActionForm());
   $('#action-form').addEventListener('submit', saveAction);
@@ -233,6 +366,10 @@ function bindEvents() {
 
   document.addEventListener('click', handleDelegatedClick);
   document.addEventListener('change', handleDelegatedChange);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkTaskReminders();
+  });
+  window.addEventListener('focus', () => checkTaskReminders());
 }
 
 async function handleLogin(event) {
@@ -267,6 +404,8 @@ async function enterApp(user) {
     state.profile = await crm.getProfile();
     showApp();
     await refreshData(false);
+    startReminderEngine();
+    await checkTaskReminders();
   } catch (error) {
     console.error(error);
     toast(`Falha ao iniciar o CRM: ${error.message}`, 'error');
@@ -276,10 +415,15 @@ async function enterApp(user) {
   }
 }
 
+
 function showLogin() {
   state.user = null;
   state.profile = null;
   state.data = emptyData();
+  if (state.reminderTimer) {
+    clearInterval(state.reminderTimer);
+    state.reminderTimer = null;
+  }
   $('#login-view').classList.remove('hidden');
   $('#app-view').classList.add('hidden');
 }
@@ -315,6 +459,8 @@ function renderAll() {
   renderFinance();
   renderPlanning();
   renderSettings();
+  renderReminderCenter();
+  updateNotificationButton();
 }
 
 function refreshDynamicSelects() {
@@ -422,9 +568,10 @@ function renderGoalProgress(m) {
     <div class="progress-track"><div class="progress-fill" style="width:${percent(current,target)}%"></div></div></div>`).join('');
 }
 
+
 function renderDashboardTasks() {
-  const items = state.data.tasks.filter(item => item.status === 'pendente').sort((a,b) => new Date(a.due_at)-new Date(b.due_at)).slice(0,6);
-  $('#dashboard-tasks').innerHTML = items.length ? `<table><thead><tr><th>Tarefa</th><th>Lead</th><th>Prazo</th><th>Prioridade</th></tr></thead><tbody>${items.map(task => `<tr><td class="cell-main">${escapeHTML(task.title)}</td><td>${escapeHTML(leadName(task.lead_id) || '—')}</td><td>${formatDateTime(task.due_at)}</td><td>${priorityBadge(task.priority)}</td></tr>`).join('')}</tbody></table>` : emptyState('Agenda limpa', 'Nenhum follow-up pendente no momento.');
+  const items = state.data.tasks.filter(isActiveTask).sort((a,b) => new Date(a.due_at)-new Date(b.due_at)).slice(0,6);
+  $('#dashboard-tasks').innerHTML = items.length ? `<table><thead><tr><th>Tarefa</th><th>Lead</th><th>Prazo</th><th>Status</th><th>Prioridade</th></tr></thead><tbody>${items.map(task => `<tr><td class="cell-main">${escapeHTML(task.title)}</td><td>${escapeHTML(leadName(task.lead_id) || '—')}</td><td>${formatDateTime(task.due_at)}</td><td>${taskStatusBadge(task.status)}</td><td>${priorityBadge(task.priority)}</td></tr>`).join('')}</tbody></table>` : emptyState('Agenda limpa', 'Nenhum follow-up pendente no momento.');
 }
 
 function renderLeads() {
@@ -438,15 +585,16 @@ function renderLeads() {
   renderKanban(filtered);
 }
 
+
 function renderLeadsTable(leads) {
-  $('#leads-table-view').innerHTML = leads.length ? `<div class="table-wrap"><table><thead><tr><th>Lead</th><th>Interesse</th><th>Origem</th><th>Status</th><th>Próximo contato</th><th></th></tr></thead><tbody>${leads.map(lead => `
+  $('#leads-table-view').innerHTML = leads.length ? `<div class="table-wrap"><table><thead><tr><th>Lead</th><th>Interesse</th><th>Origem</th><th>Status</th><th>Próximo contato</th><th>Ações</th></tr></thead><tbody>${leads.map(lead => `
     <tr>
       <td><span class="cell-main">${escapeHTML(lead.full_name)}</span><span class="cell-sub">${escapeHTML(lead.whatsapp || lead.phone || lead.email || 'Sem contato')}</span></td>
       <td>${escapeHTML(courseNames(lead.id).join(', ') || 'Não informado')}</td>
       <td>${escapeHTML(sourceName(lead.source_id) || '—')}</td>
       <td>${statusBadge(lead.status)} <span class="temperature-dot temp-${lead.temperature}" title="${escapeHTML(tempMap[lead.temperature])}"></span></td>
       <td>${formatDateTime(lead.next_contact_at)}</td>
-      <td><div class="table-actions"><button class="table-action" data-detail-lead="${lead.id}">Abrir</button><button class="table-action" data-edit-lead="${lead.id}">Editar</button>${lead.whatsapp ? `<a class="table-action" href="${whatsAppLink(lead.whatsapp)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}</div></td>
+      <td><div class="table-actions"><button class="table-action" data-detail-lead="${lead.id}">Abrir</button><button class="table-action" data-edit-lead="${lead.id}">Editar</button>${lead.whatsapp ? `<a class="table-action" href="${whatsAppLink(lead.whatsapp)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button class="table-action danger" data-delete-lead="${lead.id}">Excluir</button></div></td>
     </tr>`).join('')}</tbody></table></div>` : emptyState('Nenhum lead encontrado', 'Cadastre um novo lead ou ajuste os filtros.');
 }
 
@@ -466,24 +614,52 @@ function setLeadView(view) {
   $('#leads-kanban-view').classList.toggle('hidden', view !== 'kanban');
 }
 
+
 function renderTasks() {
   const now = new Date();
   const today = todayISO();
+  const active = state.data.tasks.filter(isActiveTask);
   const pending = state.data.tasks.filter(item => item.status === 'pendente');
-  const overdue = pending.filter(item => new Date(item.due_at) < now);
-  const todayItems = pending.filter(item => String(item.due_at).slice(0,10) === today);
-  $('#task-summary-pills').innerHTML = `<span class="summary-pill">Pendentes <strong>${pending.length}</strong></span><span class="summary-pill danger">Atrasados <strong>${overdue.length}</strong></span><span class="summary-pill">Hoje <strong>${todayItems.length}</strong></span>`;
+  const inProgress = state.data.tasks.filter(item => item.status === 'em_andamento');
+  const overdue = active.filter(item => new Date(item.due_at) < now);
+  const todayItems = active.filter(item => dateKey(item.due_at) === today);
+  $('#task-summary-pills').innerHTML = `<span class="summary-pill">Pendentes <strong>${pending.length}</strong></span><span class="summary-pill">Em andamento <strong>${inProgress.length}</strong></span><span class="summary-pill danger">Atrasadas <strong>${overdue.length}</strong></span><span class="summary-pill">Hoje <strong>${todayItems.length}</strong></span>`;
   const filter = $('#task-filter').value;
   let items = [...state.data.tasks];
-  if (filter === 'pending') items = pending;
-  if (filter === 'today') items = state.data.tasks.filter(item => String(item.due_at).slice(0,10) === today);
+  if (filter === 'pending') items = active;
+  if (filter === 'today') items = active.filter(item => dateKey(item.due_at) === today);
   if (filter === 'overdue') items = overdue;
+  if (filter === 'completed') items = state.data.tasks.filter(item => item.status === 'concluida');
+  if (filter === 'canceled') items = state.data.tasks.filter(item => item.status === 'cancelada');
   items.sort((a,b) => new Date(a.due_at)-new Date(b.due_at));
   $('#tasks-list').innerHTML = items.length ? items.map(task => {
     const due = new Date(task.due_at);
-    const tone = task.status === 'pendente' && due < now ? 'overdue' : String(task.due_at).slice(0,10) === today ? 'today' : '';
-    return `<article class="task-card ${tone}"><button class="task-check ${task.status === 'concluida' ? 'done' : ''}" data-complete-task="${task.id}" data-completed="${task.status === 'concluida'}">${task.status === 'concluida' ? '✓' : ''}</button><div><h3>${escapeHTML(task.title)}</h3><div class="task-meta"><span>${formatDateTime(task.due_at)}</span><span>${escapeHTML(leadName(task.lead_id) || 'Sem lead')}</span><span>${escapeHTML(taskTypeMap[task.task_type] || task.task_type)}</span>${priorityBadge(task.priority)}</div>${task.description ? `<p class="cell-sub">${escapeHTML(task.description)}</p>` : ''}</div><div class="table-actions"><button class="table-action" data-edit-task="${task.id}">Editar</button><button class="table-action danger" data-delete-task="${task.id}">Excluir</button></div></article>`;
+    const tone = isTaskOverdue(task, now) ? 'overdue' : task.status === 'em_andamento' ? 'in-progress' : task.status === 'concluida' ? 'completed' : task.status === 'cancelada' ? 'canceled' : dateKey(task.due_at) === today ? 'today' : '';
+    const reminderText = task.reminder_at
+      ? `${task.reminder_sent_at ? 'Aviso enviado' : 'Lembrete'}: ${formatDateTime(task.reminder_at)}`
+      : 'Sem lembrete programado';
+    const history = taskHistory(task.id);
+    const lastChange = history[0];
+    return `<article class="task-card ${tone}">
+      <button class="task-check ${task.status === 'concluida' ? 'done' : ''}" data-task-status="${task.id}" data-status="${task.status === 'concluida' ? 'pendente' : 'concluida'}" title="${task.status === 'concluida' ? 'Reabrir' : 'Concluir'}">${task.status === 'concluida' ? '✓' : ''}</button>
+      <div>
+        <h3>${escapeHTML(task.title)}</h3>
+        <div class="task-meta"><span>${formatDateTime(task.due_at)}</span><span>${escapeHTML(leadName(task.lead_id) || 'Sem lead')}</span><span>${escapeHTML(taskTypeMap[task.task_type] || task.task_type)}</span>${priorityBadge(task.priority)}</div>
+        <div class="task-status-line">${taskStatusBadge(task.status)}<span class="reminder-note">${escapeHTML(reminderText)}</span></div>
+        ${task.description ? `<p class="cell-sub">${escapeHTML(task.description)}</p>` : ''}
+        ${task.rescheduled_at && task.previous_due_at ? `<p class="cell-sub">Reagendada de ${formatDateTime(task.previous_due_at)} em ${formatDateTime(task.rescheduled_at)}.</p>` : ''}
+        ${lastChange ? `<p class="cell-sub">Última alteração: ${escapeHTML(lastChange.action_label || lastChange.action || 'atualização')} • ${formatDateTime(lastChange.changed_at)}</p>` : ''}
+      </div>
+      <div class="table-actions">
+        ${task.status === 'pendente' ? `<button class="table-action" data-task-status="${task.id}" data-status="em_andamento">Iniciar</button>` : ''}
+        ${task.status === 'em_andamento' ? `<button class="table-action neutral" data-task-status="${task.id}" data-status="pendente">Pausar</button>` : ''}
+        ${isActiveTask(task) ? `<button class="table-action success" data-task-status="${task.id}" data-status="concluida">Concluir</button><button class="table-action warning" data-reschedule-task="${task.id}">Reagendar</button><button class="table-action neutral" data-task-status="${task.id}" data-status="cancelada">Cancelar</button>` : `<button class="table-action" data-task-status="${task.id}" data-status="pendente">Reabrir</button>`}
+        <button class="table-action" data-edit-task="${task.id}">Editar</button>
+        <button class="table-action danger" data-delete-task="${task.id}">Excluir</button>
+      </div>
+    </article>`;
   }).join('') : emptyState('Nenhuma tarefa aqui', 'Sua agenda está livre para este filtro.');
+  renderReminderCenter();
 }
 
 function renderEnrollments() {
@@ -528,9 +704,10 @@ function renderPlanning() {
   $('#actions-table').innerHTML = actions.length ? `<table><thead><tr><th>Ação</th><th>Responsável</th><th>Prazo</th><th>Custo</th><th>Progresso</th><th>Status</th><th></th></tr></thead><tbody>${actions.map(action => `<tr><td><span class="cell-main">${escapeHTML(action.what_action)}</span><span class="cell-sub">${escapeHTML(action.why_action || '')}</span></td><td>${escapeHTML(action.responsible || '—')}</td><td>${formatDate(action.end_date)}</td><td>${formatMoney(action.estimated_cost)}</td><td><div class="progress-mini"><span style="width:${action.progress}%"></span></div><span class="cell-sub">${action.progress}%</span></td><td>${actionBadge(action.status)}</td><td><div class="table-actions"><button class="table-action" data-edit-action="${action.id}">Editar</button><button class="table-action danger" data-delete-action="${action.id}">Excluir</button></div></td></tr>`).join('')}</tbody></table>` : emptyState('Nenhuma ação cadastrada', 'Transforme suas metas em tarefas claras usando o 5W2H.');
 }
 
+
 function renderSettings() {
-  $('#courses-list').innerHTML = state.data.courses.map(item => `<div class="simple-item"><div><strong>${escapeHTML(item.name)}</strong><span>${escapeHTML(item.category || 'Sem categoria')} • ${escapeHTML(modalityMap[item.modality] || 'Modalidade livre')} • ${formatMoney(item.list_price)}</span></div><button class="table-action ${item.active ? '' : 'danger'}" data-toggle-course="${item.id}" data-active="${item.active}">${item.active ? 'Ativo' : 'Inativo'}</button></div>`).join('') || emptyState('Nenhum curso', 'Cadastre os cursos e planos comercializados.');
-  $('#sources-list').innerHTML = state.data.sources.map(item => `<div class="simple-item"><div><strong>${escapeHTML(item.name)}</strong><span>${item.active ? 'Disponível nos cadastros' : 'Oculta nos cadastros'}</span></div><button class="table-action ${item.active ? '' : 'danger'}" data-toggle-source="${item.id}" data-active="${item.active}">${item.active ? 'Ativa' : 'Inativa'}</button></div>`).join('') || emptyState('Nenhuma origem', 'Cadastre os canais que trazem seus leads.');
+  $('#courses-list').innerHTML = state.data.courses.map(item => `<div class="simple-item"><div><strong>${escapeHTML(item.name)}</strong><span>${escapeHTML(item.category || 'Sem categoria')} • ${escapeHTML(modalityMap[item.modality] || 'Modalidade livre')} • ${formatMoney(item.list_price)}</span></div><div class="simple-item-actions"><button class="table-action" data-edit-course="${item.id}">Editar</button><button class="table-action ${item.active ? '' : 'success'}" data-toggle-course="${item.id}" data-active="${item.active}">${item.active ? 'Desativar' : 'Ativar'}</button><button class="table-action danger" data-delete-course="${item.id}">Excluir</button></div></div>`).join('') || emptyState('Nenhum curso', 'Cadastre os cursos e planos comercializados.');
+  $('#sources-list').innerHTML = state.data.sources.map(item => `<div class="simple-item"><div><strong>${escapeHTML(item.name)}</strong><span>${item.active ? 'Disponível nos cadastros' : 'Oculta nos cadastros'}</span></div><div class="simple-item-actions"><button class="table-action" data-edit-source="${item.id}">Editar</button><button class="table-action ${item.active ? '' : 'success'}" data-toggle-source="${item.id}" data-active="${item.active}">${item.active ? 'Desativar' : 'Ativar'}</button><button class="table-action danger" data-delete-source="${item.id}">Excluir</button></div></div>`).join('') || emptyState('Nenhuma origem', 'Cadastre os canais que trazem seus leads.');
 }
 
 function emptyState(title, text) { return `<div class="empty-state"><strong>${escapeHTML(title)}</strong>${escapeHTML(text)}</div>`; }
@@ -593,31 +770,44 @@ async function saveLead(event) {
   finally { setButtonLoading(button, false); }
 }
 
+
 function openLeadDetail(lead) {
   state.currentDetailLead = lead.id;
   $('#detail-lead-name').textContent = lead.full_name;
   const interactions = state.data.interactions.filter(item => item.lead_id === lead.id).sort((a,b) => new Date(b.occurred_at)-new Date(a.occurred_at));
-  $('#lead-detail-content').innerHTML = `<div class="detail-actions"><button class="btn btn-primary btn-sm" data-new-interaction="${lead.id}">+ Registrar atendimento</button><button class="btn btn-secondary btn-sm" data-task-from-lead="${lead.id}">Agendar follow-up</button><button class="btn btn-secondary btn-sm" data-enroll-from-lead="${lead.id}">Criar matrícula</button>${lead.whatsapp ? `<a class="btn btn-secondary btn-sm" href="${whatsAppLink(lead.whatsapp)}" target="_blank" rel="noopener">Abrir WhatsApp</a>` : ''}<button class="btn btn-danger btn-sm" data-delete-lead="${lead.id}">Excluir lead</button></div>
+  $('#lead-detail-content').innerHTML = `<div class="detail-actions"><button class="btn btn-primary btn-sm" data-new-interaction="${lead.id}">+ Registrar atendimento</button><button class="btn btn-secondary btn-sm" data-edit-lead="${lead.id}">Editar lead</button><button class="btn btn-secondary btn-sm" data-task-from-lead="${lead.id}">Agendar follow-up</button><button class="btn btn-secondary btn-sm" data-enroll-from-lead="${lead.id}">Criar matrícula</button>${lead.whatsapp ? `<a class="btn btn-secondary btn-sm" href="${whatsAppLink(lead.whatsapp)}" target="_blank" rel="noopener">Abrir WhatsApp</a>` : ''}<button class="btn btn-danger btn-sm" data-delete-lead="${lead.id}">Excluir lead</button></div>
   <div class="detail-grid"><div class="detail-card"><h3>Informações</h3><div class="detail-info">
     ${detailRow('Status', statusMap[lead.status])}${detailRow('Temperatura', tempMap[lead.temperature])}${detailRow('WhatsApp', lead.whatsapp)}${detailRow('E-mail', lead.email)}${detailRow('Cidade', lead.city)}${detailRow('Origem', sourceName(lead.source_id))}${detailRow('Interesses', courseNames(lead.id).join(', '))}${detailRow('Próximo contato', formatDateTime(lead.next_contact_at))}${detailRow('Próxima ação', lead.next_action)}
   </div>${lead.notes ? `<div class="plan-text"><h3>Observações</h3><p>${escapeHTML(lead.notes)}</p></div>` : ''}${lead.lost_reason ? `<div class="plan-text"><h3>Motivo da perda</h3><p>${escapeHTML(lead.lost_reason)}</p></div>` : ''}</div>
-  <div class="detail-card"><h3>Linha do tempo</h3><div class="timeline">${interactions.length ? interactions.map(item => `<article class="timeline-item"><h4>${escapeHTML(channelMap[item.channel] || item.channel)} • ${escapeHTML(item.outcome || 'Atendimento')}</h4><p>${escapeHTML(item.summary)}</p>${item.objections ? `<p><strong>Objeções:</strong> ${escapeHTML(item.objections)}</p>` : ''}${item.proposal_amount ? `<p><strong>Proposta:</strong> ${formatMoney(item.proposal_amount)}</p>` : ''}<div class="timeline-meta">${formatDateTime(item.occurred_at)}${item.next_action ? ` • Próxima ação: ${escapeHTML(item.next_action)}` : ''}</div></article>`).join('') : emptyState('Sem atendimentos registrados', 'Registre cada conversa para preservar o histórico comercial.')}</div></div></div>`;
+  <div class="detail-card"><h3>Linha do tempo</h3><div class="timeline">${interactions.length ? interactions.map(item => `<article class="timeline-item"><h4>${escapeHTML(channelMap[item.channel] || item.channel)} • ${escapeHTML(item.outcome || 'Atendimento')}</h4><p>${escapeHTML(item.summary)}</p>${item.objections ? `<p><strong>Objeções:</strong> ${escapeHTML(item.objections)}</p>` : ''}${item.proposal_amount ? `<p><strong>Proposta:</strong> ${formatMoney(item.proposal_amount)}</p>` : ''}<div class="timeline-meta">${formatDateTime(item.occurred_at)}${item.next_action ? ` • Próxima ação: ${escapeHTML(item.next_action)}` : ''}</div><div class="timeline-actions"><button class="table-action" data-edit-interaction="${item.id}">Editar</button><button class="table-action danger" data-delete-interaction="${item.id}">Excluir</button></div></article>`).join('') : emptyState('Sem atendimentos registrados', 'Registre cada conversa para preservar o histórico comercial.')}</div></div></div>`;
   openDialog('#lead-detail-dialog');
 }
+
 function detailRow(label, value) { return `<div class="detail-row"><span>${escapeHTML(label)}</span><strong>${escapeHTML(value || '—')}</strong></div>`; }
 
-function openInteractionForm(leadId) {
+
+function openInteractionForm(leadId, interaction = null) {
   $('#interaction-form').reset();
-  $('#interaction-lead-id').value = leadId;
-  $('#interaction-channel').value = 'whatsapp';
-  $('#interaction-date').value = toLocalInput();
+  $('#interaction-id').value = interaction?.id || '';
+  $('#interaction-lead-id').value = interaction?.lead_id || leadId;
+  $('#interaction-dialog-title').textContent = interaction ? 'Editar atendimento' : 'Registrar contato';
+  $('#interaction-channel').value = interaction?.channel || 'whatsapp';
+  $('#interaction-date').value = interaction?.occurred_at ? toLocalInput(interaction.occurred_at) : toLocalInput();
+  $('#interaction-summary').value = interaction?.summary || '';
+  $('#interaction-objections').value = interaction?.objections || '';
+  $('#interaction-proposal').value = interaction?.proposal_amount || '';
+  $('#interaction-outcome').value = interaction?.outcome || '';
+  $('#interaction-next-action').value = interaction?.next_action || '';
   openDialog('#interaction-dialog');
 }
+
+
 async function saveInteraction(event) {
   event.preventDefault();
   const button = event.submitter;
   setButtonLoading(button, true);
   try {
+    const id = $('#interaction-id').value || null;
     const payload = {
       lead_id: $('#interaction-lead-id').value, channel: $('#interaction-channel').value,
       summary: $('#interaction-summary').value.trim(), objections: $('#interaction-objections').value.trim() || null,
@@ -625,11 +815,24 @@ async function saveInteraction(event) {
       outcome: $('#interaction-outcome').value.trim() || null, next_action: $('#interaction-next-action').value.trim() || null,
       occurred_at: new Date($('#interaction-date').value).toISOString()
     };
-    await crm.saveInteraction(payload);
-    if (payload.next_action) await crm.saveTask({ lead_id: payload.lead_id, title: payload.next_action, description: `Gerada a partir do atendimento: ${payload.summary}`, task_type: 'follow_up', due_at: new Date(Date.now() + 24*60*60*1000).toISOString(), priority: 'media', status: 'pendente', assigned_to: state.user.id });
+    await crm.saveInteraction(payload, id);
+    if (!id && payload.next_action) {
+      const due = new Date(Date.now() + 24*60*60*1000);
+      await crm.saveTask({
+        lead_id: payload.lead_id,
+        title: payload.next_action,
+        description: `Gerada a partir do atendimento: ${payload.summary}`,
+        task_type: 'follow_up',
+        due_at: due.toISOString(),
+        reminder_at: defaultReminderDate(due).toISOString(),
+        priority: 'media',
+        status: 'pendente',
+        assigned_to: state.user.id
+      });
+    }
     closeDialog($('#interaction-dialog'));
     closeDialog($('#lead-detail-dialog'));
-    toast('Atendimento registrado no histórico.');
+    toast(id ? 'Atendimento atualizado.' : 'Atendimento registrado no histórico.');
     await refreshData();
     const lead = state.data.leads.find(item => item.id === payload.lead_id);
     if (lead) openLeadDetail(lead);
@@ -637,25 +840,63 @@ async function saveInteraction(event) {
   finally { setButtonLoading(button, false); }
 }
 
-function openTaskForm(task = null, leadId = '') {
+
+function openTaskForm(task = null, leadId = '', reschedule = false) {
   $('#task-form').reset();
+  const due = task?.due_at ? new Date(task.due_at) : new Date(Date.now() + 24*60*60*1000);
   $('#task-id').value = task?.id || '';
-  $('#task-dialog-title').textContent = task ? 'Editar tarefa' : 'Nova tarefa';
+  $('#task-original-due').value = task?.due_at || '';
+  $('#task-dialog-title').textContent = reschedule ? 'Reagendar tarefa' : task ? 'Editar tarefa' : 'Nova tarefa';
   $('#task-title').value = task?.title || '';
   $('#task-lead').value = task?.lead_id || leadId || '';
   $('#task-type').value = task?.task_type || 'follow_up';
-  $('#task-due').value = task?.due_at ? toLocalInput(task.due_at) : toLocalInput(new Date(Date.now() + 24*60*60*1000));
+  $('#task-due').value = toLocalInput(due);
+  $('#task-reminder').value = task?.reminder_at ? toLocalInput(task.reminder_at) : (!task || reschedule ? toLocalInput(defaultReminderDate(due)) : '');
   $('#task-priority').value = task?.priority || 'media';
+  $('#task-status').value = reschedule ? 'pendente' : task?.status || 'pendente';
   $('#task-description').value = task?.description || '';
+  $('#task-dialog').dataset.autoReminder = (!task || reschedule).toString();
   openDialog('#task-dialog');
 }
+
+
 async function saveTask(event) {
   event.preventDefault();
-  const button = event.submitter; setButtonLoading(button, true);
+  const button = event.submitter;
+  setButtonLoading(button, true);
   try {
-    await crm.saveTask({ lead_id: $('#task-lead').value || null, title: $('#task-title').value.trim(), description: $('#task-description').value.trim() || null, task_type: $('#task-type').value, due_at: new Date($('#task-due').value).toISOString(), priority: $('#task-priority').value, status: 'pendente', assigned_to: state.user.id }, $('#task-id').value || null);
-    closeDialog($('#task-dialog')); toast('Tarefa salva na agenda.'); await refreshData();
-  } catch (error) { toast(error.message,'error'); } finally { setButtonLoading(button,false); }
+    const id = $('#task-id').value || null;
+    const current = id ? state.data.tasks.find(item => item.id === id) : null;
+    const dueAt = new Date($('#task-due').value).toISOString();
+    const reminderAt = $('#task-reminder').value ? new Date($('#task-reminder').value).toISOString() : null;
+    const originalDue = $('#task-original-due').value || current?.due_at || null;
+    const rescheduled = Boolean(id && originalDue && Math.abs(new Date(originalDue).getTime() - new Date(dueAt).getTime()) > 1000);
+    const reminderChanged = Boolean(current && String(current.reminder_at || '') !== String(reminderAt || ''));
+    const payload = {
+      lead_id: $('#task-lead').value || null,
+      title: $('#task-title').value.trim(),
+      description: $('#task-description').value.trim() || null,
+      task_type: $('#task-type').value,
+      due_at: dueAt,
+      reminder_at: reminderAt,
+      priority: $('#task-priority').value,
+      status: $('#task-status').value,
+      completed_at: $('#task-status').value === 'concluida' ? (current?.completed_at || new Date().toISOString()) : null,
+      assigned_to: state.user.id
+    };
+    if (rescheduled) {
+      payload.previous_due_at = originalDue;
+      payload.rescheduled_at = new Date().toISOString();
+      payload.reminder_sent_at = null;
+    } else if (reminderChanged) {
+      payload.reminder_sent_at = null;
+    }
+    await crm.saveTask(payload, id);
+    closeDialog($('#task-dialog'));
+    toast(rescheduled ? 'Tarefa reagendada.' : id ? 'Tarefa atualizada.' : 'Tarefa salva na agenda.');
+    await refreshData();
+  } catch (error) { toast(error.message,'error'); }
+  finally { setButtonLoading(button,false); }
 }
 
 function openEnrollmentForm(item = null, leadId = '') {
@@ -746,36 +987,78 @@ async function saveAction(event) {
   } catch (error) { toast(error.message,'error'); } finally { setButtonLoading(button,false); }
 }
 
-function openSimpleForm(type) {
-  $('#simple-form').reset(); $('#simple-type').value = type; const course = type === 'course';
-  $('#simple-title').textContent = course ? 'Novo curso ou plano' : 'Nova origem de lead';
+
+function openSimpleForm(type, item = null) {
+  $('#simple-form').reset();
+  $('#simple-id').value = item?.id || '';
+  $('#simple-type').value = type;
+  const course = type === 'course';
+  $('#simple-title').textContent = item ? (course ? 'Editar curso ou plano' : 'Editar origem de lead') : (course ? 'Novo curso ou plano' : 'Nova origem de lead');
   $('#simple-eyebrow').textContent = course ? 'CATÁLOGO' : 'AQUISIÇÃO';
-  $('#simple-category-field').classList.toggle('hidden', !course); $('#simple-modality-field').classList.toggle('hidden', !course); $('#simple-price-field').classList.toggle('hidden', !course);
+  $('#simple-name').value = item?.name || '';
+  $('#simple-category').value = item?.category || '';
+  $('#simple-modality').value = item?.modality || '';
+  $('#simple-price').value = safeNumber(item?.list_price);
+  $('#simple-category-field').classList.toggle('hidden', !course);
+  $('#simple-modality-field').classList.toggle('hidden', !course);
+  $('#simple-price-field').classList.toggle('hidden', !course);
   openDialog('#simple-dialog');
 }
+
+
 async function saveSimpleItem(event) {
-  event.preventDefault(); const button = event.submitter; setButtonLoading(button,true);
+  event.preventDefault();
+  const button = event.submitter;
+  setButtonLoading(button,true);
   try {
-    if ($('#simple-type').value === 'course') await crm.saveCourse({ name: $('#simple-name').value.trim(), category: $('#simple-category').value.trim() || null, modality: $('#simple-modality').value || null, list_price: safeNumber($('#simple-price').value), active: true });
-    else await crm.saveSource($('#simple-name').value.trim());
-    closeDialog($('#simple-dialog')); toast('Cadastro salvo.'); await refreshData();
-  } catch (error) { toast(error.message,'error'); } finally { setButtonLoading(button,false); }
+    const type = $('#simple-type').value;
+    const id = $('#simple-id').value || null;
+    if (type === 'course') {
+      const current = id ? state.data.courses.find(item => item.id === id) : null;
+      await crm.saveCourse({
+        name: $('#simple-name').value.trim(),
+        category: $('#simple-category').value.trim() || null,
+        modality: $('#simple-modality').value || null,
+        list_price: safeNumber($('#simple-price').value),
+        active: current?.active ?? true
+      }, id);
+    } else {
+      await crm.saveSource($('#simple-name').value.trim(), id);
+    }
+    closeDialog($('#simple-dialog'));
+    toast(id ? 'Cadastro atualizado.' : 'Cadastro salvo.');
+    await refreshData();
+  } catch (error) { toast(error.message,'error'); }
+  finally { setButtonLoading(button,false); }
 }
+
 
 async function handleDelegatedClick(event) {
   if (event.target.closest('[data-quick-status]')) return;
   const target = event.target.closest('button, [data-detail-lead]');
   if (!target) return;
   try {
-    if (target.matches('[data-detail-lead]') && !target.matches('select')) { const lead = state.data.leads.find(item => item.id === target.dataset.detailLead); if (lead) openLeadDetail(lead); }
-    else if (target.dataset.editLead) openLeadForm(state.data.leads.find(item => item.id === target.dataset.editLead));
+    if (target.matches('[data-detail-lead]') && !target.matches('select')) {
+      const lead = state.data.leads.find(item => item.id === target.dataset.detailLead);
+      if (lead) openLeadDetail(lead);
+    }
+    else if (target.dataset.editLead) {
+      const lead = state.data.leads.find(item => item.id === target.dataset.editLead);
+      if (lead) openLeadForm(lead);
+    }
     else if (target.dataset.newInteraction) openInteractionForm(target.dataset.newInteraction);
+    else if (target.dataset.editInteraction) {
+      const item = state.data.interactions.find(row => row.id === target.dataset.editInteraction);
+      if (item) openInteractionForm(item.lead_id, item);
+    }
+    else if (target.dataset.deleteInteraction) await deleteInteraction(target.dataset.deleteInteraction);
     else if (target.dataset.taskFromLead) { closeDialog($('#lead-detail-dialog')); openTaskForm(null,target.dataset.taskFromLead); }
     else if (target.dataset.enrollFromLead) { closeDialog($('#lead-detail-dialog')); openEnrollmentForm(null,target.dataset.enrollFromLead); }
     else if (target.dataset.deleteLead) await deleteLead(target.dataset.deleteLead);
     else if (target.dataset.editTask) openTaskForm(state.data.tasks.find(item => item.id === target.dataset.editTask));
+    else if (target.dataset.rescheduleTask) openTaskForm(state.data.tasks.find(item => item.id === target.dataset.rescheduleTask), '', true);
+    else if (target.dataset.taskStatus) await changeTaskStatus(target.dataset.taskStatus, target.dataset.status);
     else if (target.dataset.deleteTask) await deleteTask(target.dataset.deleteTask);
-    else if (target.dataset.completeTask) await toggleTask(target.dataset.completeTask,target.dataset.completed === 'true');
     else if (target.dataset.editEnrollment) openEnrollmentForm(state.data.enrollments.find(item => item.id === target.dataset.editEnrollment));
     else if (target.dataset.payEnrollment) openPaymentForm(null,target.dataset.payEnrollment);
     else if (target.dataset.deleteEnrollment) await deleteEnrollment(target.dataset.deleteEnrollment);
@@ -783,8 +1066,17 @@ async function handleDelegatedClick(event) {
     else if (target.dataset.deletePayment) await deletePayment(target.dataset.deletePayment);
     else if (target.dataset.editAction) openActionForm(state.data.actions.find(item => item.id === target.dataset.editAction));
     else if (target.dataset.deleteAction) await deleteAction(target.dataset.deleteAction);
+    else if (target.dataset.editCourse) openSimpleForm('course', state.data.courses.find(item => item.id === target.dataset.editCourse));
+    else if (target.dataset.deleteCourse) await deleteCourse(target.dataset.deleteCourse);
     else if (target.dataset.toggleCourse) await toggleCourse(target.dataset.toggleCourse,target.dataset.active === 'true');
+    else if (target.dataset.editSource) openSimpleForm('source', state.data.sources.find(item => item.id === target.dataset.editSource));
+    else if (target.dataset.deleteSource) await deleteSource(target.dataset.deleteSource);
     else if (target.dataset.toggleSource) await toggleSource(target.dataset.toggleSource,target.dataset.active === 'true');
+    else if (target.dataset.setTaskFilter) {
+      $('#task-filter').value = target.dataset.setTaskFilter;
+      goPage('agenda');
+      renderTasks();
+    }
     else if (target.hasAttribute('data-open-plan')) openPlanForm();
   } catch (error) { toast(error.message,'error'); }
 }
@@ -797,14 +1089,98 @@ async function handleDelegatedChange(event) {
   }
 }
 
-async function deleteLead(id) { if (!confirmAction('Excluir este lead e todo o histórico relacionado?')) return; await crm.deleteLead(id); closeDialog($('#lead-detail-dialog')); toast('Lead excluído.'); await refreshData(); }
-async function deleteTask(id) { if (!confirmAction('Excluir esta tarefa?')) return; await crm.deleteTask(id); toast('Tarefa excluída.'); await refreshData(); }
-async function toggleTask(id, completed) { await crm.completeTask(id,!completed); toast(completed ? 'Tarefa reaberta.' : 'Tarefa concluída.'); await refreshData(); }
-async function deleteEnrollment(id) { if (!confirmAction('Excluir esta matrícula? Os recebimentos vinculados também serão removidos.')) return; await crm.deleteEnrollment(id); toast('Matrícula excluída.'); await refreshData(); }
-async function deletePayment(id) { if (!confirmAction('Excluir este recebimento?')) return; await crm.deletePayment(id); toast('Recebimento excluído.'); await refreshData(); }
-async function deleteAction(id) { if (!confirmAction('Excluir esta ação do 5W2H?')) return; await crm.deleteAction(id); toast('Ação excluída.'); await refreshData(); }
-async function toggleCourse(id, active) { await crm.toggleCourse(id,!active); toast(active ? 'Curso desativado.' : 'Curso ativado.'); await refreshData(); }
-async function toggleSource(id, active) { await crm.toggleSource(id,!active); toast(active ? 'Origem desativada.' : 'Origem ativada.'); await refreshData(); }
+
+async function deleteLead(id) {
+  if (!confirmAction('Excluir este lead e todo o histórico relacionado? Esta ação não poderá ser desfeita.')) return;
+  await crm.deleteLead(id);
+  closeDialog($('#lead-detail-dialog'));
+  toast('Lead excluído.');
+  await refreshData();
+}
+async function deleteInteraction(id) {
+  const item = state.data.interactions.find(row => row.id === id);
+  if (!item || !confirmAction('Excluir este atendimento do histórico?')) return;
+  await crm.deleteInteraction(id);
+  toast('Atendimento excluído.');
+  await refreshData();
+  const lead = state.data.leads.find(row => row.id === item.lead_id);
+  if (lead && $('#lead-detail-dialog').open) openLeadDetail(lead);
+}
+async function deleteTask(id) {
+  if (!confirmAction('Excluir esta tarefa? O registro da exclusão continuará no histórico de auditoria.')) return;
+  await crm.deleteTask(id);
+  toast('Tarefa excluída.');
+  await refreshData();
+}
+async function changeTaskStatus(id, status) {
+  const labels = { pendente:'reaberta', em_andamento:'iniciada', concluida:'concluída', cancelada:'cancelada' };
+  await crm.updateTaskStatus(id, status);
+  toast(`Tarefa ${labels[status] || 'atualizada'}.`);
+  await refreshData();
+}
+async function deleteEnrollment(id) {
+  if (!confirmAction('Excluir esta matrícula? Os recebimentos vinculados também serão removidos.')) return;
+  await crm.deleteEnrollment(id);
+  toast('Matrícula excluída.');
+  await refreshData();
+}
+async function deletePayment(id) {
+  if (!confirmAction('Excluir este recebimento?')) return;
+  await crm.deletePayment(id);
+  toast('Recebimento excluído.');
+  await refreshData();
+}
+async function deletePlan() {
+  const plan = getCurrentPlan();
+  if (!plan) {
+    toast('Não existe planejamento neste mês.', 'warning');
+    return;
+  }
+  const actions = getPlanActions().length;
+  if (!confirmAction(`Excluir o planejamento de ${monthLabel()}${actions ? ` e suas ${actions} ação(ões) 5W2H` : ''}?`)) return;
+  await crm.deletePlan(plan.id);
+  toast('Planejamento excluído.');
+  await refreshData();
+}
+async function deleteAction(id) {
+  if (!confirmAction('Excluir esta ação do 5W2H?')) return;
+  await crm.deleteAction(id);
+  toast('Ação excluída.');
+  await refreshData();
+}
+async function toggleCourse(id, active) {
+  await crm.toggleCourse(id,!active);
+  toast(active ? 'Curso desativado.' : 'Curso ativado.');
+  await refreshData();
+}
+async function deleteCourse(id) {
+  const interests = state.data.interests.filter(item => item.course_id === id).length;
+  const enrollments = state.data.enrollments.filter(item => item.course_id === id).length;
+  if (interests || enrollments) {
+    toast(`Este curso está ligado a ${interests} lead(s) e ${enrollments} matrícula(s). Desative-o para preservar o histórico.`, 'warning');
+    return;
+  }
+  if (!confirmAction('Excluir definitivamente este curso ou plano?')) return;
+  await crm.deleteCourse(id);
+  toast('Curso excluído.');
+  await refreshData();
+}
+async function toggleSource(id, active) {
+  await crm.toggleSource(id,!active);
+  toast(active ? 'Origem desativada.' : 'Origem ativada.');
+  await refreshData();
+}
+async function deleteSource(id) {
+  const leads = state.data.leads.filter(item => item.source_id === id).length;
+  if (leads) {
+    toast(`Esta origem está ligada a ${leads} lead(s). Desative-a para preservar o histórico.`, 'warning');
+    return;
+  }
+  if (!confirmAction('Excluir definitivamente esta origem de lead?')) return;
+  await crm.deleteSource(id);
+  toast('Origem excluída.');
+  await refreshData();
+}
 
 function runExport(type) {
   try {
