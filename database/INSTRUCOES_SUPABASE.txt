@@ -1,22 +1,16 @@
-EVOLUA CRM COMERCIAL — INSTALAÇÃO DO BANCO
+EVOLUA CRM COMERCIAL — BANCO DE DADOS
 
-Projeto Supabase:
-https://joxsqjldhkyawijecflv.supabase.co
+INSTALAÇÃO NOVA:
+Use evolua_crm_supabase_schema.sql e depois execute ATUALIZACAO_V1_1.sql.
 
-1. Abra o projeto no Supabase.
-2. No menu esquerdo, entre em SQL Editor.
-3. Clique em New query.
-4. Abra o arquivo evolua_crm_supabase_schema.sql.
-5. Copie todo o conteúdo e cole no editor.
-6. Clique em Run.
-7. O resultado esperado é: Success. No rows returned.
+ATUALIZAÇÃO DE UM CRM QUE JÁ ESTÁ FUNCIONANDO:
+Execute somente ATUALIZACAO_V1_1.sql.
 
-Depois, confira em Table Editor se apareceram as tabelas:
-profiles, workspaces, workspace_members, courses, lead_sources, leads,
-lead_interests, interactions, lead_status_history, tasks, enrollments,
-payments, monthly_plans e sw2h_actions.
+A atualização V1.1:
+- não apaga dados existentes;
+- adiciona lembretes e reagendamento às tarefas;
+- adiciona o status Em andamento;
+- cria histórico automático das tarefas.
 
-Segurança:
-- Não use nem envie a secret key/service_role.
-- O banco utiliza Row Level Security (RLS).
-- A chave publishable será usada somente no frontend.
+Resultado esperado:
+Success. No rows returned
