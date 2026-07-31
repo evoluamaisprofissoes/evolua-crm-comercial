@@ -1,27 +1,19 @@
 EVOLUA CRM COMERCIAL
-Versão: 1.0.0 FINAL
-Data: 30/07/2026
-Status: pronto para publicação manual no GitHub Pages
+Versão: 1.1.0
+Data: 31/07/2026
+Status: atualização pronta para publicação manual no GitHub Pages
 
-Módulos incluídos:
-- Login Supabase
-- Dashboard com indicadores e gráficos
-- Leads em lista e funil
-- Cursos de interesse
-- Histórico de atendimentos
-- Agenda e follow-ups
-- Matrículas
-- Financeiro e faturamento total
-- Planejamento mensal e metas
-- Plano de ação 5W2H
-- Cadastros de cursos e origens
-- Exportações Excel, PDF e JSON
+Novidades:
+- CRUD ampliado: editar e excluir registros
+- Edição e exclusão de atendimentos
+- Edição, ativação, desativação e exclusão segura de cursos e origens
+- Exclusão do planejamento mensal
+- Status de tarefas: pendente, em andamento, concluída e cancelada
+- Reagendamento com prazo anterior
+- Lembretes internos e notificações do navegador
+- Histórico automático de tarefas
+- Exportação do histórico de tarefas para Excel
 
-Validações realizadas:
-- Sintaxe dos arquivos JavaScript
-- Correspondência dos elementos HTML usados pelo JavaScript
-- Integridade dos caminhos de arquivos locais
-- Estrutura compatível com GitHub Pages
-
-Observação:
-O teste de login e gravação no banco acontece após a publicação, usando o usuário criado no Supabase.
+Banco:
+- Execute database/ATUALIZACAO_V1_1.sql antes de substituir os arquivos.
+- A migração é incremental e não apaga dados existentes.

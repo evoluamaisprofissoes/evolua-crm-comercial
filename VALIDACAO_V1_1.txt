@@ -1,0 +1,15 @@
+EVOLUA CRM COMERCIAL — VALIDAÇÃO V1.1
+
+Verificações concluídas:
+- Sintaxe dos quatro arquivos JavaScript validada com node --check.
+- IDs HTML: 182 encontrados, sem duplicações.
+- Seletores JavaScript: 173 conferidos, nenhum ID ausente.
+- Estrutura de pastas compatível com GitHub Pages.
+- Migração incremental sem DROP TABLE, TRUNCATE ou DELETE FROM.
+- Chave utilizada no frontend: somente Publishable Key.
+- Cache busting v1.1.0 aplicado aos arquivos CSS e JavaScript.
+
+Teste ao vivo:
+- O login e as operações reais dependem do usuário do Supabase.
+- A execução em navegador automatizado local foi bloqueada pela política do ambiente,
+  portanto a validação final de gravação deve ser feita após o upload, com seu login.

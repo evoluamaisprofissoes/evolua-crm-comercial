@@ -8,7 +8,7 @@
   <title>Evolua CRM Comercial</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=1.1.0">
 </head>
 <body>
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
@@ -64,7 +64,7 @@
       <nav class="nav-menu" aria-label="Navegação principal">
         <button class="nav-item active" data-page="dashboard"><span class="nav-icon">◫</span> Dashboard</button>
         <button class="nav-item" data-page="leads"><span class="nav-icon">◎</span> Leads</button>
-        <button class="nav-item" data-page="agenda"><span class="nav-icon">◷</span> Agenda e follow-up</button>
+        <button class="nav-item" data-page="agenda"><span class="nav-icon">◷</span> Agenda e follow-up <span id="agenda-badge" class="nav-badge hidden">0</span></button>
         <button class="nav-item" data-page="enrollments"><span class="nav-icon">✓</span> Matrículas</button>
         <button class="nav-item" data-page="finance"><span class="nav-icon">$</span> Financeiro</button>
         <button class="nav-item" data-page="planning"><span class="nav-icon">◇</span> Planejamento 5W2H</button>
@@ -180,14 +180,18 @@
             <div class="summary-pills" id="task-summary-pills"></div>
             <div class="toolbar-group">
               <select id="task-filter">
-                <option value="pending">Pendentes</option>
+                <option value="pending">Pendentes e em andamento</option>
                 <option value="today">Hoje</option>
                 <option value="overdue">Atrasados</option>
+                <option value="completed">Concluídas</option>
+                <option value="canceled">Canceladas</option>
                 <option value="all">Todos</option>
               </select>
+              <button id="enable-notifications-button" class="btn btn-secondary">🔔 Ativar lembretes</button>
               <button id="new-task-button" class="btn btn-primary">+ Agendar tarefa</button>
             </div>
           </div>
+          <div id="task-alerts" class="reminder-center hidden"></div>
           <div class="panel"><div id="tasks-list" class="task-list"></div></div>
         </section>
 
@@ -221,7 +225,10 @@
                   <span class="eyebrow">DIREÇÃO DO MÊS</span>
                   <h2>Metas e planejamento</h2>
                 </div>
-                <button id="edit-plan-button" class="btn btn-secondary btn-sm">Editar metas</button>
+                <div class="table-actions">
+                  <button id="edit-plan-button" class="btn btn-secondary btn-sm">Editar metas</button>
+                  <button id="delete-plan-button" class="btn btn-danger btn-sm">Excluir</button>
+                </div>
               </div>
               <div id="monthly-plan-view"></div>
             </article>
@@ -331,9 +338,10 @@
   <dialog id="interaction-dialog" class="dialog">
     <form id="interaction-form" method="dialog">
       <div class="dialog-head">
-        <div><span class="eyebrow">ATENDIMENTO</span><h2>Registrar contato</h2></div>
+        <div><span class="eyebrow">ATENDIMENTO</span><h2 id="interaction-dialog-title">Registrar contato</h2></div>
         <button class="icon-btn dialog-close" type="button">×</button>
       </div>
+      <input id="interaction-id" type="hidden">
       <input id="interaction-lead-id" type="hidden">
       <div class="form-grid">
         <label><span>Canal</span><select id="interaction-channel"></select></label>
@@ -359,11 +367,14 @@
       </div>
       <div class="form-grid">
         <input id="task-id" type="hidden">
+        <input id="task-original-due" type="hidden">
         <label class="field-span-2"><span>Título *</span><input id="task-title" required></label>
         <label><span>Lead relacionado</span><select id="task-lead"></select></label>
         <label><span>Tipo</span><select id="task-type"></select></label>
         <label><span>Data e hora *</span><input id="task-due" type="datetime-local" required></label>
+        <label><span>Lembrar em</span><input id="task-reminder" type="datetime-local"><small>A notificação aparece com o CRM aberto.</small></label>
         <label><span>Prioridade</span><select id="task-priority"></select></label>
+        <label><span>Status</span><select id="task-status"></select></label>
         <label class="field-span-2"><span>Descrição</span><textarea id="task-description" rows="3"></textarea></label>
       </div>
       <div class="dialog-actions">
@@ -485,6 +496,7 @@
         <div><span id="simple-eyebrow" class="eyebrow">CADASTRO</span><h2 id="simple-title">Novo item</h2></div>
         <button class="icon-btn dialog-close" type="button">×</button>
       </div>
+      <input id="simple-id" type="hidden">
       <input id="simple-type" type="hidden">
       <div class="form-grid">
         <label class="field-span-2"><span>Nome *</span><input id="simple-name" required></label>
@@ -502,6 +514,6 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/app.js?v=1.1.0"></script>
 </body>
 </html>

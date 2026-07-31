@@ -1,0 +1,52 @@
+EVOLUA CRM COMERCIAL — ATUALIZAÇÃO V1.1
+
+ORDEM CORRETA
+
+1. FAÇA UM BACKUP
+   No CRM atual, entre em Relatórios e exporte JSON ou Excel.
+   É uma camada extra de segurança. A atualização não apaga os dados.
+
+2. ATUALIZE O SUPABASE
+   a) Abra o projeto do CRM no Supabase.
+   b) Entre em SQL Editor > New query.
+   c) Abra o arquivo database/ATUALIZACAO_V1_1.sql.
+   d) Copie todo o conteúdo, cole no editor e clique em Run.
+   e) Resultado esperado: Success. No rows returned.
+
+   IMPORTANTE:
+   - Execute apenas ATUALIZACAO_V1_1.sql.
+   - Não execute novamente evolua_crm_supabase_schema.sql.
+   - O script usa ALTER TABLE e CREATE TABLE IF NOT EXISTS.
+   - Nenhum lead, atendimento, matrícula ou pagamento é apagado.
+
+3. SUBSTITUA OS ARQUIVOS NO GITHUB
+   a) Extraia o ZIP.
+   b) Abra o repositório do CRM.
+   c) Clique em Add file > Upload files.
+   d) Selecione todos os arquivos e pastas extraídos.
+   e) Envie para a raiz do repositório, substituindo os anteriores.
+   f) Clique em Commit changes.
+
+4. ATUALIZE O NAVEGADOR
+   Aguarde o GitHub Pages republicar.
+   Abra o CRM e pressione Ctrl + F5 para limpar a versão antiga do cache.
+
+5. ATIVE OS LEMBRETES
+   Na página Agenda e follow-up, clique em Ativar lembretes.
+   Autorize as notificações no navegador.
+
+COMO FUNCIONAM OS AVISOS
+
+- Alertas internos mostram tarefas atrasadas e tarefas de hoje.
+- A notificação do navegador dispara no horário definido em Lembrar em.
+- O CRM precisa estar aberto em alguma aba para a notificação ser disparada.
+- Novas tarefas recebem lembrete 15 minutos antes por padrão.
+- Tarefas antigas continuam preservadas e podem ser editadas para incluir um lembrete.
+
+NOVAS AÇÕES
+
+- Editar ou excluir leads e atendimentos.
+- Editar, concluir, iniciar, pausar, cancelar, reabrir e reagendar tarefas.
+- Editar ou excluir matrículas, recebimentos, metas e ações 5W2H.
+- Editar, ativar e desativar cursos e origens.
+- Excluir curso ou origem apenas quando não houver registros vinculados, protegendo o histórico.
