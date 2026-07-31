@@ -1,19 +1,17 @@
 EVOLUA CRM COMERCIAL
-Versão: 1.1.0
-Data: 31/07/2026
-Status: atualização pronta para publicação manual no GitHub Pages
+VERSÃO 1.2.0
 
-Novidades:
-- CRUD ampliado: editar e excluir registros
-- Edição e exclusão de atendimentos
-- Edição, ativação, desativação e exclusão segura de cursos e origens
-- Exclusão do planejamento mensal
-- Status de tarefas: pendente, em andamento, concluída e cancelada
-- Reagendamento com prazo anterior
-- Lembretes internos e notificações do navegador
-- Histórico automático de tarefas
-- Exportação do histórico de tarefas para Excel
+Principais mudanças:
+- Metas múltiplas por mês e por frente comercial.
+- Vínculo de metas a um ou vários cursos.
+- Acompanhamento automático de vendas, receita gerada e recebido.
+- Novo lançamento financeiro completo.
+- Seleção ou cadastro de lead dentro do fluxo financeiro.
+- Pesquisa de matrícula por lead, aluno ou curso.
+- Exportação das metas comerciais para Excel e PDF.
 
 Banco:
-- Execute database/ATUALIZACAO_V1_1.sql antes de substituir os arquivos.
-- A migração é incremental e não apaga dados existentes.
+Execute database/ATUALIZACAO_V1_2.sql antes de publicar os arquivos.
+
+Data:
+2026-07-31

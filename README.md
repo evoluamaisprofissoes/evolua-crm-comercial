@@ -49,3 +49,13 @@ Na página `Agenda e follow-up`, clique em `Ativar lembretes` e autorize o naveg
 - A atualização dos arquivos do GitHub não apaga o banco.
 - A chave em `js/config.js` é uma Publishable Key própria para frontend.
 - Nunca coloque uma Secret Key ou `service_role` no repositório.
+
+
+## Versão 1.2
+
+- Múltiplas metas no mesmo mês, vinculadas a cursos e produtos.
+- Indicadores separados de vendas, receita gerada e faturamento recebido.
+- Cadastro, edição e exclusão de metas comerciais.
+- Novo fluxo financeiro para selecionar ou criar um lead, registrar matrícula, valor combinado e valor pago.
+- Pesquisa de matrículas por aluno, lead ou curso.
+- Antes da publicação, execute `database/ATUALIZACAO_V1_2.sql` no Supabase.

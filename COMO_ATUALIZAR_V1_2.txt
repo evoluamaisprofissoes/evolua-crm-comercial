@@ -1,0 +1,29 @@
+EVOLUA CRM COMERCIAL — ATUALIZAÇÃO V1.2
+
+ORDEM CORRETA
+
+1. Faça uma exportação JSON ou Excel no CRM como cópia de segurança.
+2. No Supabase, abra SQL Editor > New query.
+3. Cole somente o conteúdo de database/ATUALIZACAO_V1_2.sql.
+4. Clique em Run.
+5. Confirme: Success. No rows returned.
+6. No GitHub, envie TODOS os arquivos deste pacote para a raiz do repositório.
+7. Confirme a substituição dos arquivos existentes e faça o commit.
+8. Aguarde o GitHub Pages concluir a publicação.
+9. Abra o CRM e pressione Ctrl + F5.
+
+NOVIDADES
+
+- Cadastro de várias metas no mesmo mês.
+- Metas separadas por frente, curso ou produto.
+- Meta de vendas, receita gerada e faturamento recebido.
+- Edição e exclusão individual de metas.
+- Dashboard passa a exibir as metas por frente.
+- Financeiro permite pesquisar matrículas por lead, aluno ou curso.
+- Novo fluxo para cadastrar lead, matrícula, valor combinado e valor pago.
+- Leads existentes também podem ser usados no novo fluxo financeiro.
+
+DADOS EXISTENTES
+
+A atualização cria somente novas tabelas para as metas múltiplas.
+Leads, matrículas, recebimentos, tarefas e planejamentos existentes são preservados.

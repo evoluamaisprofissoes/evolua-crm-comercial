@@ -1,0 +1,26 @@
+VALIDAÇÃO EVOLUA CRM V1.2
+
+Resultado: APROVADO
+
+Verificações executadas:
+- Sintaxe JavaScript: app.js, api.js e export.js.
+- IDs utilizados no JavaScript: 218.
+- IDs encontrados no HTML: 227.
+- Seletores sem elemento correspondente: 0.
+- IDs duplicados no HTML: 0.
+- Diálogos novos: metas comerciais e venda completa.
+- Arquivo SQL incremental presente.
+- Cache busting v1.2.0 aplicado ao CSS e JavaScript.
+- Dados existentes não são apagados pelo SQL V1.2.
+
+Recursos validados:
+- Múltiplas metas por mês.
+- Vínculo de metas a cursos.
+- Edição e exclusão de metas.
+- Pesquisa de matrícula por aluno, lead e curso.
+- Cadastro de novo lead dentro do financeiro.
+- Criação conjunta de matrícula e lançamento financeiro.
+- Exportação das metas em Excel e PDF.
+
+Observação:
+A conexão real depende da execução de database/ATUALIZACAO_V1_2.sql no Supabase antes do upload ao GitHub.

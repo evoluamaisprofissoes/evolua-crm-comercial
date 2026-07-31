@@ -8,7 +8,7 @@
   <title>Evolua CRM Comercial</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
-  <link rel="stylesheet" href="css/styles.css?v=1.1.0">
+  <link rel="stylesheet" href="css/styles.css?v=1.2.0">
 </head>
 <body>
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
@@ -211,13 +211,26 @@
                 <span class="eyebrow">CAIXA COMERCIAL</span>
                 <h2>Recebimentos</h2>
               </div>
-              <button id="new-payment-button" class="btn btn-primary">+ Registrar recebimento</button>
+              <div class="toolbar-group">
+                <button id="new-sale-button" class="btn btn-primary">+ Matrícula e lançamento</button>
+                <button id="new-payment-button" class="btn btn-secondary">+ Recebimento existente</button>
+              </div>
             </div>
             <div id="payments-table" class="table-wrap"></div>
           </div>
         </section>
 
         <section id="page-planning" class="page">
+          <article class="panel sales-goals-panel">
+            <div class="panel-head">
+              <div>
+                <span class="eyebrow">METAS POR FRENTE COMERCIAL</span>
+                <h2>Metas de vendas e faturamento</h2>
+              </div>
+              <button id="new-goal-button" class="btn btn-primary btn-sm">+ Nova meta</button>
+            </div>
+            <div id="sales-goals-grid" class="sales-goals-grid"></div>
+          </article>
           <div class="planning-grid">
             <article class="panel">
               <div class="panel-head">
@@ -420,7 +433,14 @@
       </div>
       <div class="form-grid">
         <input id="payment-id" type="hidden">
-        <label class="field-span-2"><span>Matrícula *</span><select id="payment-enrollment" required></select></label>
+        <label class="field-span-2"><span>Buscar matrícula</span><input id="payment-search" placeholder="Digite o nome do aluno, lead ou curso"></label>
+        <label><span>Filtrar por lead</span><select id="payment-lead"></select></label>
+        <label><span>Matrícula *</span><select id="payment-enrollment" required></select></label>
+        <div id="payment-enrollment-hint" class="field-span-2 inline-hint hidden">
+          <strong>Nenhuma matrícula encontrada.</strong>
+          <span>Crie o lead, a matrícula e o lançamento financeiro no mesmo fluxo.</span>
+          <button id="payment-create-sale-button" class="btn btn-secondary btn-sm" type="button">Criar matrícula e lançamento</button>
+        </div>
         <label><span>Descrição</span><input id="payment-description" placeholder="Ex.: 1ª parcela"></label>
         <label><span>Número da parcela</span><input id="payment-number" type="number" min="1"></label>
         <label><span>Valor recebido *</span><input id="payment-amount" type="number" min="0" step="0.01" required></label>
@@ -432,6 +452,87 @@
       <div class="dialog-actions">
         <button class="btn btn-ghost dialog-close" type="button">Cancelar</button>
         <button class="btn btn-primary" type="submit">Registrar recebimento</button>
+      </div>
+    </form>
+  </dialog>
+
+
+  <dialog id="goal-dialog" class="dialog dialog-large">
+    <form id="goal-form" method="dialog">
+      <div class="dialog-head">
+        <div><span class="eyebrow">META COMERCIAL</span><h2 id="goal-dialog-title">Nova meta</h2></div>
+        <button class="icon-btn dialog-close" type="button">×</button>
+      </div>
+      <div class="form-grid">
+        <input id="goal-id" type="hidden">
+        <label class="field-span-2"><span>Nome da meta *</span><input id="goal-name" required placeholder="Ex.: Evolua Academy, Presencial ou Provão"></label>
+        <label><span>Meta de vendas/matrículas</span><input id="goal-enrollments" type="number" min="0" step="1" value="0"></label>
+        <label><span>Meta de receita gerada</span><input id="goal-generated" type="number" min="0" step="0.01" value="0"></label>
+        <label><span>Meta de faturamento recebido</span><input id="goal-received" type="number" min="0" step="0.01" value="0"></label>
+        <label><span>Mês de referência</span><input id="goal-month" type="month" required></label>
+        <label class="field-span-2"><span>Cursos e produtos vinculados</span><select id="goal-courses" multiple size="7"></select><small>Selecione os cursos que alimentam esta meta. Sem seleção, a meta considera todas as matrículas.</small></label>
+        <label class="field-span-2"><span>Observações</span><textarea id="goal-notes" rows="3" placeholder="Ex.: foco em renovação, campanha específica ou equipe responsável"></textarea></label>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost dialog-close" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Salvar meta</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="sale-dialog" class="dialog dialog-xlarge">
+    <form id="sale-form" method="dialog">
+      <div class="dialog-head">
+        <div><span class="eyebrow">VENDA COMPLETA</span><h2>Lead, matrícula e financeiro</h2></div>
+        <button class="icon-btn dialog-close" type="button">×</button>
+      </div>
+      <div class="form-grid">
+        <label class="field-span-2"><span>Como deseja identificar o cliente?</span>
+          <select id="sale-lead-mode">
+            <option value="existing">Selecionar um lead existente</option>
+            <option value="new">Cadastrar um novo lead agora</option>
+          </select>
+        </label>
+
+        <div id="sale-existing-lead-fields" class="field-span-2 subform">
+          <div class="subform-grid">
+            <label><span>Buscar lead</span><input id="sale-lead-search" placeholder="Nome, WhatsApp ou e-mail"></label>
+            <label><span>Lead *</span><select id="sale-existing-lead"></select></label>
+          </div>
+        </div>
+
+        <div id="sale-new-lead-fields" class="field-span-2 subform hidden">
+          <div class="subform-grid">
+            <label><span>Nome do novo lead *</span><input id="sale-new-name"></label>
+            <label><span>WhatsApp</span><input id="sale-new-whatsapp" placeholder="(65) 99999-9999"></label>
+            <label><span>E-mail</span><input id="sale-new-email" type="email"></label>
+            <label><span>Origem</span><select id="sale-new-source"></select></label>
+          </div>
+        </div>
+
+        <div class="form-section-title field-span-2">Dados da matrícula</div>
+        <label><span>Aluno *</span><input id="sale-student" required></label>
+        <label><span>Curso ou plano *</span><select id="sale-course" required></select></label>
+        <label><span>Data da matrícula</span><input id="sale-enrollment-date" type="date" required></label>
+        <label><span>Status da matrícula</span><select id="sale-enrollment-status"></select></label>
+        <label><span>Valor combinado do contrato</span><input id="sale-contract" type="number" min="0" step="0.01" value="0"></label>
+        <label><span>Taxa de matrícula</span><input id="sale-fee" type="number" min="0" step="0.01" value="0"></label>
+        <label><span>Quantidade de parcelas</span><input id="sale-installments" type="number" min="1" step="1" value="1"></label>
+        <label><span>Valor da parcela</span><input id="sale-installment-value" type="number" min="0" step="0.01" value="0"></label>
+        <label><span>Forma de pagamento</span><select id="sale-method"></select></label>
+        <label><span>Dia de vencimento</span><input id="sale-due-day" type="number" min="1" max="31"></label>
+
+        <div class="form-section-title field-span-2">Lançamento financeiro inicial</div>
+        <label><span>Valor pago ou lançado agora</span><input id="sale-paid-amount" type="number" min="0" step="0.01" value="0"></label>
+        <label><span>Status do lançamento</span><select id="sale-payment-status"></select></label>
+        <label><span>Data do recebimento/vencimento</span><input id="sale-payment-date" type="datetime-local"></label>
+        <label><span>Número da parcela</span><input id="sale-payment-number" type="number" min="1" value="1"></label>
+        <label class="field-span-2"><span>Descrição</span><input id="sale-payment-description" placeholder="Ex.: entrada, taxa de matrícula ou 1ª parcela"></label>
+        <label class="field-span-2"><span>Observações</span><textarea id="sale-notes" rows="3"></textarea></label>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost dialog-close" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Salvar venda completa</button>
       </div>
     </form>
   </dialog>
@@ -514,6 +615,6 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=1.1.0"></script>
+  <script type="module" src="js/app.js?v=1.2.0"></script>
 </body>
 </html>
