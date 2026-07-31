@@ -59,3 +59,11 @@ Na página `Agenda e follow-up`, clique em `Ativar lembretes` e autorize o naveg
 - Novo fluxo financeiro para selecionar ou criar um lead, registrar matrícula, valor combinado e valor pago.
 - Pesquisa de matrículas por aluno, lead ou curso.
 - Antes da publicação, execute `database/ATUALIZACAO_V1_2.sql` no Supabase.
+
+
+## Correção 1.2.1
+
+- O lançamento financeiro recarrega os leads diretamente do Supabase ao abrir.
+- A seleção de lead agora aparece como uma lista visível, com busca por nome, WhatsApp, telefone e e-mail.
+- Inclui botão `Atualizar lista` e contador de leads encontrados.
+- Não exige SQL novo e não altera os dados já cadastrados.

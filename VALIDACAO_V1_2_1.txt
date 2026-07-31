@@ -1,0 +1,18 @@
+VALIDAÇÃO EVOLUA CRM V1.2.1
+
+Resultado: APROVADO
+
+Correção validada:
+- O modal financeiro busca novamente os leads diretamente no Supabase ao abrir.
+- Existe botão manual “Atualizar lista”.
+- Leads ficam visíveis em lista e podem ser filtrados por nome, WhatsApp, telefone ou e-mail.
+- A seleção preenche automaticamente o nome do aluno.
+- A alternância entre lead existente e novo lead ficou separada em dois botões.
+- Não há alteração de banco e nenhum SQL adicional é necessário.
+
+Verificações técnicas:
+- Sintaxe JavaScript aprovada em app.js, api.js e export.js.
+- Todos os IDs usados diretamente pelo JavaScript existem no HTML.
+- Nenhum ID duplicado no HTML.
+- Cache busting atualizado para v1.2.1.
+- Pacote ZIP testado sem corrupção.

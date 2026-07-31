@@ -8,7 +8,7 @@
   <title>Evolua CRM Comercial</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
-  <link rel="stylesheet" href="css/styles.css?v=1.2.0">
+  <link rel="stylesheet" href="css/styles.css?v=1.2.1">
 </head>
 <body>
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
@@ -487,17 +487,27 @@
         <button class="icon-btn dialog-close" type="button">×</button>
       </div>
       <div class="form-grid">
-        <label class="field-span-2"><span>Como deseja identificar o cliente?</span>
-          <select id="sale-lead-mode">
-            <option value="existing">Selecionar um lead existente</option>
-            <option value="new">Cadastrar um novo lead agora</option>
-          </select>
-        </label>
+        <div class="field-span-2">
+          <span class="field-label">Como deseja identificar o cliente?</span>
+          <div class="segmented-control" role="group" aria-label="Forma de identificar o cliente">
+            <button class="segment active" type="button" data-sale-mode-button="existing">Buscar lead cadastrado</button>
+            <button class="segment" type="button" data-sale-mode-button="new">Cadastrar novo lead</button>
+          </div>
+          <input id="sale-lead-mode" type="hidden" value="existing">
+        </div>
 
-        <div id="sale-existing-lead-fields" class="field-span-2 subform">
+        <div id="sale-existing-lead-fields" class="field-span-2 subform sale-lead-picker">
+          <div class="subform-head">
+            <div>
+              <strong>Leads cadastrados</strong>
+              <small id="sale-lead-count">Carregando lista...</small>
+            </div>
+            <button id="sale-reload-leads-button" class="btn btn-ghost btn-small" type="button">↻ Atualizar lista</button>
+          </div>
           <div class="subform-grid">
-            <label><span>Buscar lead</span><input id="sale-lead-search" placeholder="Nome, WhatsApp ou e-mail"></label>
-            <label><span>Lead *</span><select id="sale-existing-lead"></select></label>
+            <label class="field-span-2"><span>Buscar por nome, WhatsApp, telefone ou e-mail</span><input id="sale-lead-search" autocomplete="off" placeholder="Digite para filtrar os leads cadastrados"></label>
+            <label class="field-span-2"><span>Selecione o lead *</span><select id="sale-existing-lead" class="lead-results-select" size="6" aria-describedby="sale-lead-status"></select></label>
+            <p id="sale-lead-status" class="field-hint field-span-2">A lista será atualizada diretamente do banco.</p>
           </div>
         </div>
 
@@ -615,6 +625,6 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=1.2.0"></script>
+  <script type="module" src="js/app.js?v=1.2.1"></script>
 </body>
 </html>

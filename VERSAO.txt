@@ -1,17 +1,15 @@
 EVOLUA CRM COMERCIAL
-VERSÃO 1.2.0
+VERSÃO 1.2.1
 
-Principais mudanças:
-- Metas múltiplas por mês e por frente comercial.
-- Vínculo de metas a um ou vários cursos.
-- Acompanhamento automático de vendas, receita gerada e recebido.
-- Novo lançamento financeiro completo.
-- Seleção ou cadastro de lead dentro do fluxo financeiro.
-- Pesquisa de matrícula por lead, aluno ou curso.
-- Exportação das metas comerciais para Excel e PDF.
+Correção:
+- Busca de leads cadastrados no lançamento financeiro.
+- Lista de leads visível e filtrável por nome, WhatsApp, telefone ou e-mail.
+- Atualização direta da lista pelo Supabase ao abrir a venda.
+- Botão para recarregar os leads manualmente.
+- Alternância mais clara entre lead existente e novo lead.
 
 Banco:
-Execute database/ATUALIZACAO_V1_2.sql antes de publicar os arquivos.
+Nenhum SQL adicional é necessário. O banco da versão 1.2 permanece válido.
 
 Data:
 2026-07-31
